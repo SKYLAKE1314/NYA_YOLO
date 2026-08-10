@@ -4,7 +4,7 @@
     <SchemaVersion>2.0</SchemaVersion>
     <ProjectGuid>fac4769b-8baf-4cab-b4ad-e2ddd710db63</ProjectGuid>
     <ProjectHome>.</ProjectHome>
-    <StartupFile>UI\NyaYOLOStudio.py</StartupFile>
+    <StartupFile>build_nuitka.py</StartupFile>
     <SearchPath>
     </SearchPath>
     <WorkingDirectory>.</WorkingDirectory>
@@ -23,6 +23,7 @@
     <EnableUnmanagedDebugging>false</EnableUnmanagedDebugging>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Include="build_nuitka.py" />
     <Compile Include="ConfigCreator.py" />
     <Compile Include="Datasets\Split.py" />
     <Compile Include="Detection\DetectionTest.py" />

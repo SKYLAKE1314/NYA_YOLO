@@ -1,8 +1,3 @@
-"""
-HalconProjectManager — Halcon 深度學習工具風格專案目錄與數據集拆分管理器
-自動管理固定專案目錄 (NYA_Project/raw_images, labels, dataset)、自動轉換 XML/JSON 標註檔並提供一鍵 Train/Val 拆分與 config.yaml 生成
-"""
-
 import os
 import shutil
 import random
@@ -147,7 +142,7 @@ class HalconProjectManager:
         with open(yaml_path, 'w', encoding='utf-8') as f:
             yaml.dump(config, f, sort_keys=False, allow_unicode=True)
 
-        log_func(f"✨ [Halcon 工作流] 拆分完成！訓練集: {len(train_set)} 張, 驗證集: {len(val_set)} 張")
+        log_func(f"✨ [NYA 工作流] 拆分完成！訓練集: {len(train_set)} 張, 驗證集: {len(val_set)} 張")
         log_func(f"📄 config.yaml 已生成於: {yaml_path}")
 
         return {

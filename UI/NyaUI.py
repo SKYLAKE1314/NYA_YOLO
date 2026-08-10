@@ -13,8 +13,14 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QIcon, QPixmap, QPainter, QColor
 
-# 模組路徑設定
-CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
+# 模組路徑設定（相容 Nuitka 打包與開發模式）
+_BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+# Nuitka 打包後 __file__ 指向 .dist 根目錄，資源檔在 UI/ 子目錄
+_UI_SUBDIR = os.path.join(_BASE_DIR, "UI")
+if os.path.isdir(_UI_SUBDIR) and os.path.exists(os.path.join(_UI_SUBDIR, "icon.ico")):
+    CURRENT_DIR = _UI_SUBDIR          # Nuitka 打包模式
+else:
+    CURRENT_DIR = _BASE_DIR           # 開發模式（直接在 UI/ 目錄運行）
 PARENT_DIR = os.path.abspath(os.path.join(CURRENT_DIR, ".."))
 if CURRENT_DIR not in sys.path:
     sys.path.insert(0, CURRENT_DIR)
@@ -167,10 +173,10 @@ class NyaUI(QMainWindow):
             self.header.btn_theme.setText(f"⚙ 跟隨系統{sys_str}")
         elif self.theme_mode == "light":
             self.dark_mode = False
-            self.header.btn_theme.setText("☀ 暖光護眼模式")
+            self.header.btn_theme.setText("☀ 昨日青空")
         else:
             self.dark_mode = True
-            self.header.btn_theme.setText("🌙 暖暗護眼模式")
+            self.header.btn_theme.setText("🌙 DARK")
 
         qss = GoogleAccountTheme.get_style(self.dark_mode)
         self.setStyleSheet(qss)

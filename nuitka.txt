@@ -1,0 +1,21 @@
+python -m nuitka ^
+    --standalone ^
+    --plugin-enable=pyside6 ^
+    --plugin-enable=torch ^
+    --plugin-enable=numpy ^
+    --include-package-data=ultralytics ^
+    --windows-icon-from-ico=UI\icon.ico ^
+    --windows-company-name="SKYLAKE" ^
+    --windows-product-name="NyaDLTT" ^
+    --windows-file-name="NyaDLTT.exe" ^
+    --windows-file-description="Nya DeepLearning Train Platform" ^
+    --windows-file-version="0.1.0.0" ^
+    --windows-product-version="0.1.0.0" ^
+    --windows-copyright="by SKYLAKE, MIT License" ^
+    --include-data-dir=tools=tools ^
+    --include-data-files=ConfigCreator.py=. ^
+    --include-data-files=UI\icon.ico=UI\icon.ico ^
+    --include-data-files=UI\file_0000000031e8720681bd49398eace5bf.png=UI\file_0000000031e8720681bd49398eace5bf.png ^
+    --assume-yes-for-downloads ^
+    --output-dir=dist_nuitka ^
+    UI\NyaYOLOStudio.py
