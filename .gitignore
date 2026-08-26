@@ -382,3 +382,26 @@ UI/*
 !UI/**/*.py
 !UI/icons/
 !UI/icons/**
+!UI/icon.ico
+!UI/*.png
+
+# Nuitka & Build Artifacts
+dist_nuitka/
+NyaYoloStudioForNuitkaCpp/
+dist/
+build/
+*.dist/
+*.build/
+*.zip
+*.7z
+*.rar
+nuitka-crash-report.xml
+nuitka.txt
+debug_out.txt
+exit_log.txt
+
+# NYA Project & UI Cache
+NYA_Project/
+.nya_cache.json
+*.log
+

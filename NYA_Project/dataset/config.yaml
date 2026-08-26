@@ -1,6 +1,0 @@
-path: Z:/VisionTek/Ultralytics/Ultralytics_YOLO/NYA_Project/dataset
-train: train/images
-val: val/images
-nc: 1
-names:
-- Text

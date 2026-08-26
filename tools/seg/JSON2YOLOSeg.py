@@ -7,7 +7,7 @@ import json
 # =========================================
 class JSON2YOLOSeg:
 
-    def __init__(self, classes, output_dir):
+    def __init__(self, classes, output_dir, image_folder=None):
 
         self.classes = classes
 
@@ -17,6 +17,7 @@ class JSON2YOLOSeg:
         }
 
         self.output_dir = output_dir
+        self.image_folder = image_folder
 
         os.makedirs(self.output_dir, exist_ok=True)
 
@@ -40,6 +41,35 @@ class JSON2YOLOSeg:
 
         image_width = data.get("imageWidth")
         image_height = data.get("imageHeight")
+
+        if not image_width or not image_height:
+            # Fallback: search image in image_folder or json directory
+            base_name = os.path.splitext(os.path.basename(json_path))[0]
+            search_folders = []
+            if self.image_folder and os.path.exists(self.image_folder):
+                search_folders.append(self.image_folder)
+            search_folders.append(os.path.dirname(json_path))
+
+            for fld in search_folders:
+                for ext in ['.jpg', '.jpeg', '.png', '.bmp', '.webp', '.tif', '.tiff', '.JPG', '.PNG', '.JPEG', '.BMP']:
+                    c_path = os.path.join(fld, base_name + ext)
+                    if os.path.exists(c_path):
+                        try:
+                            from PIL import Image
+                            with Image.open(c_path) as im:
+                                image_width, image_height = im.size
+                            break
+                        except Exception:
+                            try:
+                                import cv2
+                                img = cv2.imread(c_path)
+                                if img is not None:
+                                    image_height, image_width = img.shape[:2]
+                                    break
+                            except Exception:
+                                pass
+                if image_width and image_height:
+                    break
 
         if not image_width or not image_height:
 
@@ -66,21 +96,16 @@ class JSON2YOLOSeg:
 
                 class_id = self.class_map[label]
 
-                shape_type = shape.get("shape_type", "")
-
-                # only polygon
-                if shape_type != "polygon":
-
-                    print(f"[WARN] Skip non-polygon: {shape_type}")
-
-                    continue
-
+                shape_type = shape.get("shape_type", "polygon")
                 points = shape.get("points", [])
 
-                # polygon minimum 3 points
-                if len(points) < 3:
+                # Support rectangle shape in LabelMe by converting to 4 polygon vertices
+                if shape_type == "rectangle" and len(points) == 2:
+                    p1, p2 = points[0], points[1]
+                    points = [[p1[0], p1[1]], [p2[0], p1[1]], [p2[0], p2[1]], [p1[0], p2[1]]]
+                elif shape_type != "polygon" or len(points) < 3:
 
-                    print(f"[WARN] Invalid polygon: {json_path}")
+                    print(f"[WARN] Skip non-polygon/rectangle shape ({shape_type}): {json_path}")
 
                     continue
 

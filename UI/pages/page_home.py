@@ -27,31 +27,32 @@ class HomePageWidget(QWidget):
 
         page = QWidget()
         layout = QVBoxLayout(page)
-        layout.setContentsMargins(40, 30, 40, 40)
-        layout.setSpacing(20)
+        layout.setContentsMargins(32, 14, 32, 14)
+        layout.setSpacing(10)
         layout.setAlignment(Qt.AlignHCenter)
 
-        # 1. 中央頭像
+        # 1. 中央頭像與標題
         avatar_box = QVBoxLayout()
         avatar_box.setAlignment(Qt.AlignCenter)
+        avatar_box.setSpacing(2)
 
         avatar_frame = QLabel()
-        avatar_frame.setFixedSize(100, 100)
+        avatar_frame.setFixedSize(60, 60)
         avatar_frame.setAlignment(Qt.AlignCenter)
         avatar_frame.setStyleSheet("""
             background-color: rgba(130, 80, 220, 0.15);
-            border: 3px solid rgba(130, 80, 220, 0.5);
-            border-radius: 50px;
-            font-size: 42px;
+            border: 2px solid rgba(130, 80, 220, 0.5);
+            border-radius: 30px;
+            font-size: 26px;
         """)
         avatar_frame.setText("✨")
 
         user_title = QLabel("YOLO Studio 智慧視覺訓練平台")
-        user_title.setStyleSheet("font-size: 22px; font-weight: bold; margin-top: 10px;")
+        user_title.setStyleSheet("font-size: 20px; font-weight: bold; margin-top: 4px;")
         user_title.setAlignment(Qt.AlignCenter)
 
         user_subtitle = QLabel("yolo12 & yolo26 相容 • 檢測 / 分割 / 分類 / 實時追蹤全功能")
-        user_subtitle.setStyleSheet("font-size: 13px;")
+        user_subtitle.setStyleSheet("font-size: 12px; opacity: 0.85;")
         user_subtitle.setAlignment(Qt.AlignCenter)
 
         avatar_box.addWidget(avatar_frame, 0, Qt.AlignCenter)
@@ -62,11 +63,12 @@ class HomePageWidget(QWidget):
         # 2. 大型 Google 搜尋列
         search_box = QHBoxLayout()
         search_box.setAlignment(Qt.AlignCenter)
+        search_box.setSpacing(8)
 
         self.home_search_bar = QLineEdit()
         self.home_search_bar.setObjectName("GoogleSearchBar")
         self.home_search_bar.setPlaceholderText("🔍 搜尋模型 (yolo12/26)、追蹤器 (bytetrack)、格式 (onnx)...")
-        self.home_search_bar.setFixedWidth(640)
+        self.home_search_bar.setFixedWidth(560)
 
         search_keywords = [
             "yolo12n.pt - 一鍵載入並開啟 YOLO12 訓練配置",
@@ -88,7 +90,7 @@ class HomePageWidget(QWidget):
         self.home_search_bar.returnPressed.connect(self._on_search_submit)
 
         btn_search_exec = QPushButton("搜尋執行 ➔")
-        btn_search_exec.setObjectName("GoogleAmberButton")
+        btn_search_exec.setObjectName("GooglePrimaryButton")
         btn_search_exec.clicked.connect(self._on_search_submit)
 
         search_box.addWidget(self.home_search_bar)
@@ -98,7 +100,7 @@ class HomePageWidget(QWidget):
         # 3. Quick Chips
         chip_box = QHBoxLayout()
         chip_box.setAlignment(Qt.AlignCenter)
-        chip_box.setSpacing(10)
+        chip_box.setSpacing(8)
 
         chips = [
             ("📦 yolo12n.pt", lambda: self.search_requested.emit("yolo12n.pt")),
@@ -116,16 +118,15 @@ class HomePageWidget(QWidget):
             chip_box.addWidget(btn)
 
         layout.addLayout(chip_box)
-        layout.addSpacing(10)
 
         # 4. 操作提示與工作流卡片
         tiles_header = QLabel("💡 智慧工作流建議與操作提示")
-        tiles_header.setStyleSheet("font-size: 16px; font-weight: bold; margin-top: 10px;")
+        tiles_header.setStyleSheet("font-size: 14px; font-weight: bold; margin-top: 2px;")
         tiles_header.setAlignment(Qt.AlignLeft)
         layout.addWidget(tiles_header, 0, Qt.AlignHCenter)
 
         metro_grid = QGridLayout()
-        metro_grid.setSpacing(20)
+        metro_grid.setSpacing(10)
 
         recommendations = [
             ("🚀 建議：一鍵訓練 YOLO12 / YOLO26", "檢測到已具備 PyTorch & GPU 加速，建議優先配置 100 Epochs 與 AMP 混合精度開啟模型訓練。", lambda: self.search_requested.emit("yolo12n.pt"), "配置訓練 ➔"),
@@ -137,10 +138,11 @@ class HomePageWidget(QWidget):
         for i, (rtitle, rdesc, rcb, rbtn_text) in enumerate(recommendations):
             tile = QFrame()
             tile.setObjectName("MetroTileCard")
-            tile.setMinimumWidth(360)
+            tile.setMinimumWidth(320)
 
             t_layout = QVBoxLayout(tile)
-            t_layout.setContentsMargins(18, 18, 18, 18)
+            t_layout.setContentsMargins(14, 10, 14, 10)
+            t_layout.setSpacing(4)
 
             t_title = QLabel(rtitle)
             t_title.setObjectName("MetroTileTitle")
@@ -156,7 +158,6 @@ class HomePageWidget(QWidget):
 
             t_layout.addWidget(t_title)
             t_layout.addWidget(t_desc)
-            t_layout.addSpacing(12)
             t_layout.addWidget(t_btn, 0, Qt.AlignRight)
 
             row, col = i // 2, i % 2
@@ -164,11 +165,13 @@ class HomePageWidget(QWidget):
 
         layout.addLayout(metro_grid)
 
-        footer_lbl = QLabel("本程式碼基於 Ultralytics YOLO，使用 MIT License授權。任何散佈和再發行務必遵循相關條款。")
-        footer_lbl.setStyleSheet("font-size: 11px; text-align: center; margin-top: 15px;")
-        footer_lbl.setWordWrap(True)
+        # 5. 授權宣告 (單行置中、清晰可讀)
+        footer_lbl = QLabel("本程式碼基於 Ultralytics YOLO • 使用 MIT License 授權 • 散佈與再發行請遵循開源授權條款 • by SKYLAKE")
+        footer_lbl.setObjectName("HomeFooterText")
+        footer_lbl.setWordWrap(False)
         footer_lbl.setAlignment(Qt.AlignCenter)
-        layout.addWidget(footer_lbl, 0, Qt.AlignCenter) 
+        layout.addSpacing(4)
+        layout.addWidget(footer_lbl, 0, Qt.AlignCenter)
 
         scroll.setWidget(page)
         root_layout.addWidget(scroll)

@@ -35,18 +35,17 @@ class GoogleHeaderWidget(QWidget):
         logo_box.addWidget(logo_title)
         logo_box.addWidget(logo_sub)
 
-        # 主題按鈕 (預設跟隨系統)
-        self.btn_theme = QPushButton("⚙ 跟隨系統 (預設)")
+        # 主題切換按鈕 (預設半月星夢)
+        self.btn_theme = QPushButton("🌙 半月星夢")
         self.btn_theme.setObjectName("GoogleHeaderBtn")
+        self.btn_theme.setToolTip("點擊切換主題 (🌙 半月星夢 / ☀ 昨日青空)")
         self.btn_theme.clicked.connect(self._on_theme_clicked)
 
-        btn_help = QPushButton("❓ 說明")
-        btn_help.setObjectName("GoogleHeaderBtn")
-        btn_help.clicked.connect(self._show_help_dialog)
-
-        btn_grid = QPushButton("⣿ 服務")
-        btn_grid.setObjectName("GoogleHeaderBtn")
-        btn_grid.clicked.connect(self._show_services_menu)
+        # 專案 GitHub 按鈕
+        btn_project = QPushButton("專案")
+        btn_project.setObjectName("GoogleHeaderBtn")
+        btn_project.setToolTip("造訪 SKYLAKE1314/NYA_YOLO 開源專案 GitHub")
+        btn_project.clicked.connect(self._open_project_url)
 
         # Compute Mode Button
         ICON_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "icons")
@@ -89,22 +88,14 @@ class GoogleHeaderWidget(QWidget):
         layout.addLayout(logo_box)
         layout.addStretch()
         layout.addWidget(self.btn_theme)
-        layout.addWidget(btn_help)
-        layout.addWidget(btn_grid)
+        layout.addWidget(btn_project)
         layout.addWidget(self.avatar_btn)
 
     def _on_theme_clicked(self):
         self.theme_changed.emit("cycle")
 
-    def _show_help_dialog(self):
-        from PySide6.QtWidgets import QMessageBox
-        QMessageBox.information(
-            self, "使用說明",
-            "✨ 歡迎使用 Nya YOLO Studio！\n\n"
-            "本軟體支援 YOLOv8, YOLOv9, YOLOv10, YOLO11, YOLO12 等全系列架構訓練、開放詞彙 (World Detection) 零樣本檢測、專用文字區域標籤檢測與 Model Export 工具。\n"
-            "如需協助請參閱系統環境診斷或說明文件。"
-        )
+    def _open_project_url(self):
+        from PySide6.QtGui import QDesktopServices
+        from PySide6.QtCore import QUrl
+        QDesktopServices.openUrl(QUrl("https://github.com/SKYLAKE1314/NYA_YOLO"))
 
-    def _show_services_menu(self):
-        from PySide6.QtWidgets import QMessageBox
-        QMessageBox.information(self, "服務功能", "🌐 相關服務：DataPrep 格式轉換、Model Trainer、World Zero-Shot 測試、Export Deploy。")

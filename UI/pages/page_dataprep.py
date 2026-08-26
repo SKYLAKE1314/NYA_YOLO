@@ -8,10 +8,10 @@ from PySide6.QtWidgets import (
     QWidget, QHBoxLayout, QVBoxLayout, QLabel, QLineEdit, QPushButton,
     QFrame, QFormLayout, QComboBox, QCheckBox, QDoubleSpinBox, QTextEdit,
     QScrollArea, QGridLayout, QFileDialog, QTabWidget, QListWidget,
-    QListWidgetItem, QInputDialog, QMessageBox, QSizePolicy
+    QListWidgetItem, QInputDialog, QMessageBox, QSizePolicy, QProgressBar
 )
 from PySide6.QtCore import Signal, Qt
-from PySide6.QtGui import QKeySequence, QShortcut
+from PySide6.QtGui import QKeySequence, QShortcut, QPixmap, QImage
 from components.annotation_canvas import AnnotationCanvasWidget
 from project_manager import HalconProjectManager
 
@@ -38,6 +38,8 @@ class DataPrepPageWidget(QWidget):
     start_convert_requested = Signal(dict)
     start_datacheck_requested = Signal()
     jump_to_train_requested = Signal(str)
+    start_auto_annotate_requested = Signal(dict)
+    stop_auto_annotate_requested = Signal()
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -46,6 +48,7 @@ class DataPrepPageWidget(QWidget):
         self.current_img_idx = -1
         self.label_dir = self.project_mgr.labels_dir
         self.class_list = ["NG", "OK"]
+        self.last_auto_result = None
         self.init_ui()
 
     def init_ui(self):
@@ -322,6 +325,173 @@ class DataPrepPageWidget(QWidget):
         labeler_layout.addWidget(canvas_card, 1)
 
         self.main_tabs.addTab(tab_labeler, "🏷️ LabelImg 互動標註 & NYA 工作流")
+
+        # ── Tab 3: AI 模型批次自動標注 (Auto-Annotation) ────────────
+        tab_auto = QWidget()
+        auto_layout = QHBoxLayout(tab_auto)
+        auto_layout.setContentsMargins(12, 12, 12, 12)
+
+        # 左側控制卡片
+        auto_ctrl_card = QFrame()
+        auto_ctrl_card.setObjectName("GoogleCard")
+        auto_ctrl_card.setFixedWidth(380)
+
+        card_outer_layout3 = QVBoxLayout(auto_ctrl_card)
+        card_outer_layout3.setContentsMargins(0, 0, 0, 0)
+        card_outer_layout3.setSpacing(0)
+
+        scroll_area3 = QScrollArea()
+        scroll_area3.setWidgetResizable(True)
+        scroll_area3.setFrameShape(QFrame.NoFrame)
+        scroll_area3.setStyleSheet("QScrollArea { background: transparent; border: none; }")
+
+        scroll_content3 = QWidget()
+        scroll_content3.setObjectName("CardScrollContent")
+        left_layout3 = QVBoxLayout(scroll_content3)
+        left_layout3.setContentsMargins(16, 16, 16, 16)
+        left_layout3.setSpacing(6)
+
+        header3 = QLabel("AI 模型批次自動標注")
+        header3.setObjectName("GoogleCardTitle")
+        left_layout3.addWidget(header3)
+
+        form3 = QFormLayout()
+        form3.setVerticalSpacing(8)
+
+        # 專案名稱與目錄
+        self.auto_proj_name_input = QLineEdit("NYA_AutoLabel")
+        form3.addRow("專案名稱:", self.auto_proj_name_input)
+
+        self.auto_proj_root_input = QLineEdit(PARENT_DIR)
+        btn_proj_root = QPushButton("選擇專案輸出根目錄")
+        btn_proj_root.clicked.connect(lambda: self._select_folder(self.auto_proj_root_input))
+        form3.addRow("輸出根目錄:", self.auto_proj_root_input)
+        form3.addRow("", btn_proj_root)
+
+        self.auto_source_input = QLineEdit()
+        btn_source_dir = QPushButton("選擇待標注圖像資料夾")
+        btn_source_dir.clicked.connect(lambda: self._select_folder(self.auto_source_input))
+        form3.addRow("待標注圖像目錄:", self.auto_source_input)
+        form3.addRow("", btn_source_dir)
+
+        # 模型與推論參數
+        self.auto_model_input = QLineEdit("yolov8s-worldv2.pt")
+        btn_select_model = QPushButton("選擇模型檔案 (.pt)")
+        btn_select_model.clicked.connect(lambda: self._select_file(self.auto_model_input, "選擇 YOLO 模型"))
+        form3.addRow("推論模型路徑:", self.auto_model_input)
+        form3.addRow("", btn_select_model)
+
+        self.auto_task_combo = QComboBox()
+        self.auto_task_combo.addItems(["detect (目標檢測)", "segment (實例分割)"])
+        form3.addRow("任務模式:", self.auto_task_combo)
+
+        self.auto_conf_spin = QDoubleSpinBox()
+        self.auto_conf_spin.setRange(0.01, 1.0)
+        self.auto_conf_spin.setSingleStep(0.05)
+        self.auto_conf_spin.setValue(0.25)
+        form3.addRow("Conf (置信度閾值):", self.auto_conf_spin)
+
+        self.auto_iou_spin = QDoubleSpinBox()
+        self.auto_iou_spin.setRange(0.01, 1.0)
+        self.auto_iou_spin.setSingleStep(0.05)
+        self.auto_iou_spin.setValue(0.45)
+        form3.addRow("IoU (重疊抑制閾值):", self.auto_iou_spin)
+
+        self.auto_imgsz_combo = QComboBox()
+        self.auto_imgsz_combo.addItems(["640", "320", "480", "800", "1024", "1280"])
+        form3.addRow("推論尺寸 (ImgSz):", self.auto_imgsz_combo)
+
+        self.auto_device_input = QLineEdit("0")
+        form3.addRow("運算裝置 (Device):", self.auto_device_input)
+
+        # World 檢測提示詞
+        self.auto_world_prompt_input = QLineEdit("defect, scratch, text, label")
+        self.auto_world_prompt_input.setPlaceholderText("例如: defect, scratch 或留空使用模型自帶類別")
+        form3.addRow("World 類別提示詞:", self.auto_world_prompt_input)
+
+        # 拆分與生成
+        self.auto_split_cb = QCheckBox("自動切分 Train/Val 並生成 config.yaml")
+        self.auto_split_cb.setChecked(True)
+        form3.addRow(self.auto_split_cb)
+
+        self.auto_split_ratio_spin = QDoubleSpinBox()
+        self.auto_split_ratio_spin.setRange(0.05, 0.5)
+        self.auto_split_ratio_spin.setSingleStep(0.05)
+        self.auto_split_ratio_spin.setValue(0.2)
+        form3.addRow("Val 驗證集比例:", self.auto_split_ratio_spin)
+
+        left_layout3.addLayout(form3)
+        left_layout3.addSpacing(10)
+
+        # 操作按鈕
+        self.btn_start_auto = QPushButton("▶ 啟動 AI 批次自動標注")
+        self.btn_start_auto.setObjectName("GoogleAmberButton")
+        self.btn_start_auto.clicked.connect(self._on_auto_annotate_click)
+        left_layout3.addWidget(self.btn_start_auto)
+
+        self.btn_stop_auto = QPushButton("⏹ 停止標注")
+        self.btn_stop_auto.setObjectName("GoogleSecondaryButton")
+        self.btn_stop_auto.clicked.connect(self._on_stop_auto_annotate_click)
+        self.btn_stop_auto.setEnabled(False)
+        left_layout3.addWidget(self.btn_stop_auto)
+
+        self.btn_load_to_labeler = QPushButton("載入至標註視窗復核 (Tab 2) ➔")
+        self.btn_load_to_labeler.setObjectName("GoogleSecondaryButton")
+        self.btn_load_to_labeler.clicked.connect(self._load_auto_annotated_to_labeler)
+        left_layout3.addWidget(self.btn_load_to_labeler)
+
+        self.btn_jump_to_train_auto = QPushButton("模型訓練 (Page 2) ➔")
+        self.btn_jump_to_train_auto.setObjectName("GoogleAmberButton")
+        self.btn_jump_to_train_auto.clicked.connect(self._jump_to_train_from_auto)
+        left_layout3.addWidget(self.btn_jump_to_train_auto)
+
+        left_layout3.addSpacing(8)
+        self.auto_progress_bar = QProgressBar()
+        self.auto_progress_bar.setRange(0, 100)
+        self.auto_progress_bar.setValue(0)
+        left_layout3.addWidget(self.auto_progress_bar)
+
+        self.auto_stat_lbl = QLabel("待命：設定參數後點擊【啟動 AI 批次自動標注】...")
+        self.auto_stat_lbl.setStyleSheet("font-size: 11px; opacity: 0.9;")
+        self.auto_stat_lbl.setWordWrap(True)
+        left_layout3.addWidget(self.auto_stat_lbl)
+
+        left_layout3.addSpacing(6)
+        left_layout3.addWidget(QLabel("自動標注日誌:"))
+        self.auto_log = QTextEdit()
+        self.auto_log.setObjectName("GoogleLogViewer")
+        self.auto_log.setReadOnly(True)
+        self.auto_log.setMaximumHeight(90)
+        left_layout3.addWidget(self.auto_log)
+
+        left_layout3.addStretch()
+
+        scroll_area3.setWidget(scroll_content3)
+        card_outer_layout3.addWidget(scroll_area3)
+        auto_layout.addWidget(auto_ctrl_card, 0)
+
+        # 右側實時預覽卡片
+        auto_right_card = QFrame()
+        auto_right_card.setObjectName("GoogleCard")
+        right_layout3 = QVBoxLayout(auto_right_card)
+
+        r3_header = QLabel("自動標注即時預覽")
+        r3_header.setObjectName("GoogleCardTitle")
+        right_layout3.addWidget(r3_header)
+
+        self.auto_preview_lbl = QLabel()
+        self.auto_preview_lbl.setAlignment(Qt.AlignCenter)
+        self.auto_preview_lbl.setStyleSheet("background-color: #121214; border-radius: 8px; border: 1px dashed #444746;")
+        self.auto_preview_lbl.setText("即時推論影像與檢測框預覽畫面...")
+        right_layout3.addWidget(self.auto_preview_lbl, 1)
+
+        self.auto_summary_lbl = QLabel("📊 標注統計：尚未啟動標注任務")
+        self.auto_summary_lbl.setStyleSheet("font-size: 12px; font-weight: 500; padding: 4px;")
+        right_layout3.addWidget(self.auto_summary_lbl)
+
+        auto_layout.addWidget(auto_right_card, 1)
+
+        self.main_tabs.addTab(tab_auto, "AI 模型自動標注 (Auto-Annotation)")
         root_layout.addWidget(self.main_tabs)
 
         # 鍵盤快捷鍵 (A: 上一張, D: 下一張, Ctrl+S: 儲存)
@@ -342,7 +512,7 @@ class DataPrepPageWidget(QWidget):
         folder = QFileDialog.getExistingDirectory(self, "選擇圖像資料夾 (Import Images)")
         if not folder:
             return
-        raw_dir, _ = self.project_mgr.setup_project_from_folders(folder, copy_files=True)
+        raw_dir, _ = self.project_mgr.setup_project_from_folders(folder, copy_files=True, clear_existing=True)
         self._refresh_project_file_list()
         QMessageBox.information(self, "匯入成功", f"已成功匯入圖像並建立專案目錄！\n專案位置: {raw_dir}")
 
@@ -497,6 +667,11 @@ class DataPrepPageWidget(QWidget):
             box_cnt = len(self.canvas.boxes)
             self.lbl_status.setText(f"[{self.current_img_idx+1}/{len(self.image_files)}] {fname} — 已編輯 ({box_cnt} 個標註框, 按 Ctrl+S 儲存)")
 
+    def _select_file(self, line_edit, title="選擇檔案", filter_str="YOLO 模型 (*.pt);;所有檔案 (*.*)"):
+        file_path, _ = QFileDialog.getOpenFileName(self, title, "", filter_str)
+        if file_path:
+            line_edit.setText(file_path)
+
     def _select_folder(self, line_edit):
         folder = QFileDialog.getExistingDirectory(self, "選擇資料夾")
         if folder:
@@ -516,3 +691,134 @@ class DataPrepPageWidget(QWidget):
 
     def append_log(self, text):
         self.convert_log.append(text)
+
+    # ── Tab 3 AI 自動標注交互與槽函數 ────────────────────────
+    def _on_auto_annotate_click(self):
+        source_dir = self.auto_source_input.text().strip()
+        model_path = self.auto_model_input.text().strip()
+        proj_root = self.auto_proj_root_input.text().strip()
+        proj_name = self.auto_proj_name_input.text().strip() or "NYA_AutoLabel"
+
+        if not source_dir or not os.path.exists(source_dir):
+            QMessageBox.warning(self, "路徑錯誤", "請指定有效的待標注圖像資料夾！")
+            return
+
+        if not model_path:
+            QMessageBox.warning(self, "模型錯誤", "請指定有效的推論模型路徑 (.pt)！")
+            return
+
+        # 整理 World Prompts
+        raw_prompts = self.auto_world_prompt_input.text().strip()
+        world_prompts = [p.strip() for p in raw_prompts.split(",") if p.strip()] if raw_prompts else None
+
+        data = {
+            "model_path": model_path,
+            "source_dir": source_dir,
+            "project_root": proj_root,
+            "project_name": proj_name,
+            "conf": self.auto_conf_spin.value(),
+            "iou": self.auto_iou_spin.value(),
+            "imgsz": int(self.auto_imgsz_combo.currentText()),
+            "device": self.auto_device_input.text().strip() or "0",
+            "world_prompts": world_prompts,
+            "task_type": "segment" if "segment" in self.auto_task_combo.currentText() else "detect",
+            "auto_split": self.auto_split_cb.isChecked(),
+            "split_ratio": self.auto_split_ratio_spin.value()
+        }
+
+        self.btn_start_auto.setEnabled(False)
+        self.btn_stop_auto.setEnabled(True)
+        self.auto_progress_bar.setValue(0)
+        self.auto_log.clear()
+        self.start_auto_annotate_requested.emit(data)
+
+    def _on_stop_auto_annotate_click(self):
+        self.stop_auto_annotate_requested.emit()
+        self.auto_stat_lbl.setText("⏹ 已發送停止指令，正在安全終止...")
+
+    def _load_auto_annotated_to_labeler(self):
+        target_dir = None
+        if self.last_auto_result and "project_dir" in self.last_auto_result:
+            target_dir = self.last_auto_result["project_dir"]
+        else:
+            proj_root = self.auto_proj_root_input.text().strip()
+            proj_name = self.auto_proj_name_input.text().strip() or "NYA_AutoLabel"
+            candidate = os.path.join(proj_root, proj_name)
+            if os.path.exists(candidate):
+                target_dir = candidate
+
+        if not target_dir or not os.path.exists(target_dir):
+            QMessageBox.information(self, "提示", "尚未找到已完成的自動標注專案目錄，請先執行自動標注！")
+            return
+
+        raw_imgs = os.path.join(target_dir, "raw_images")
+        lbls_dir = os.path.join(target_dir, "labels")
+
+        # 覆寫或同步至目前標註器專案
+        self.project_mgr.setup_project_from_folders(raw_imgs, lbls_dir, copy_files=True)
+        self._refresh_project_file_list()
+        self.main_tabs.setCurrentIndex(1)
+        QMessageBox.information(
+            self, "載入成功",
+            f"已將專案 [{os.path.basename(target_dir)}] 的影像與標註成果載入至 LabelImg 互動標註器！\n您可立即使用滑鼠進行框體檢查、微調或增刪。"
+        )
+
+    def _jump_to_train_from_auto(self):
+        config_path = None
+        if self.last_auto_result and self.last_auto_result.get("dataset_config_path"):
+            config_path = self.last_auto_result["dataset_config_path"]
+        else:
+            proj_root = self.auto_proj_root_input.text().strip()
+            proj_name = self.auto_proj_name_input.text().strip() or "NYA_AutoLabel"
+            candidate_cfg = os.path.join(proj_root, proj_name, "dataset", "config.yaml")
+            if os.path.exists(candidate_cfg):
+                config_path = candidate_cfg
+
+        if not config_path or not os.path.exists(config_path):
+            QMessageBox.warning(self, "未找到 Config", "尚未找到已拆分的 dataset/config.yaml！請確認自動標注時有勾選【自動切分 Train/Val】。")
+            return
+
+        self.jump_to_train_requested.emit(config_path)
+
+    def append_auto_log(self, text):
+        self.auto_log.append(text)
+
+    def update_auto_progress(self, current, total):
+        if total > 0:
+            pct = int(current / total * 100)
+            self.auto_progress_bar.setValue(pct)
+
+    def update_auto_status(self, text):
+        self.auto_stat_lbl.setText(text)
+
+    def update_auto_preview(self, qimage, filename, box_count):
+        if not qimage.isNull():
+            pix = QPixmap.fromImage(qimage)
+            target_size = self.auto_preview_lbl.size()
+            if target_size.width() > 50 and target_size.height() > 50:
+                scaled_pix = pix.scaled(target_size, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+                self.auto_preview_lbl.setPixmap(scaled_pix)
+            else:
+                self.auto_preview_lbl.setPixmap(pix)
+
+    def on_auto_annotate_finished(self, success, message, summary_dict):
+        self.btn_start_auto.setEnabled(True)
+        self.btn_stop_auto.setEnabled(False)
+        if success:
+            self.last_auto_result = summary_dict
+            processed = summary_dict.get("processed", 0)
+            total_boxes = summary_dict.get("total_boxes", 0)
+            class_stats = summary_dict.get("class_stats", {})
+            stat_lines = [f"📊 標注完成！共處理 {processed} 張圖像，生成 {total_boxes} 個目標框。"]
+            if class_stats:
+                stat_str = ", ".join([f"{k}: {v}" for k, v in class_stats.items() if v > 0])
+                if stat_str:
+                    stat_lines.append(f"類別分佈: {stat_str}")
+            self.auto_summary_lbl.setText("\n".join(stat_lines))
+            QMessageBox.information(
+                self, "自動標注完成",
+                f"🎉 AI 自動標注任務圓滿完成！\n共處理: {processed} 張圖像\n生成標註: {total_boxes} 個目標\n專案位置: {summary_dict.get('project_dir', '')}"
+            )
+        else:
+            QMessageBox.warning(self, "標注提示", f"自動標注中斷或失敗: {message}")
+
