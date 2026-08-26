@@ -554,12 +554,19 @@ class TrainWorker(QThread):
                         if isinstance(m, dict):
                             metrics["map50"]    = float(m.get("metrics/mAP50(B)",    m.get("metrics/mAP50(M)",    m.get("mAP50", 0))))
                             metrics["map50_95"] = float(m.get("metrics/mAP50-95(B)", m.get("metrics/mAP50-95(M)", m.get("mAP50-95", 0))))
+                            metrics["top1_acc"] = float(m.get("metrics/accuracy_top1", m.get("accuracy_top1", 0)))
+                            metrics["top5_acc"] = float(m.get("metrics/accuracy_top5", m.get("accuracy_top5", 0)))
                 except Exception as me:
                     self.log_signal.emit(f"[WARN] 解析 metrics 發生異常: {me}")
 
                 self.epoch_metrics_signal.emit(metrics)
-                box_str = f"{metrics['box_loss']:.4f}" if "box_loss" in metrics else "N/A"
-                self.log_signal.emit(f"Epoch [{epoch}/{epochs}] 進度: {pct}% | Box Loss: {box_str}")
+                if "top1_acc" in metrics and metrics["top1_acc"] > 0:
+                    cls_str = f"{metrics.get('cls_loss', metrics.get('box_loss', 0)):.4f}"
+                    acc_str = f"{metrics['top1_acc']*100:.2f}%"
+                    self.log_signal.emit(f"Epoch [{epoch}/{epochs}] 進度: {pct}% | Loss: {cls_str} | Top-1 準確率: {acc_str}")
+                else:
+                    box_str = f"{metrics['box_loss']:.4f}" if "box_loss" in metrics else "N/A"
+                    self.log_signal.emit(f"Epoch [{epoch}/{epochs}] 進度: {pct}% | Box Loss: {box_str}")
 
             model.add_callback("on_train_batch_end", on_train_batch_end)
             model.add_callback("on_train_epoch_end", on_train_epoch_end)

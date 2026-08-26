@@ -54,7 +54,7 @@ class TrainConfigPageWidget(QWidget):
         self.task_combo.addItems([
             "🎯 Detect  (目標檢測)",
             "✂️ Segment (實例分割)",
-            "🏷 Classify (圖像分類)",
+            "🏷 Classify (圖像二分類 / 多分類)",
             "🌐 World Detection (開放詞彙)"
         ])
         self.task_combo.currentIndexChanged.connect(self._on_task_changed)
@@ -90,10 +90,17 @@ class TrainConfigPageWidget(QWidget):
                 "yolo11n-seg.pt", "yolo11s-seg.pt",
                 "yolo12-seg.yaml",
             ],
-            "🏷 Classify (圖像分類)": [
-                "yolo12n-cls.pt", "yolo12s-cls.pt", "yolo12m-cls.pt",
-                "yolo11n-cls.pt", "yolo11s-cls.pt",
-                "yolo12-cls.yaml",
+            "🏷 Classify (圖像二分類 / 多分類)": [
+                # ResNet 系列 (二分類 / 缺陷分類推薦)
+                "yolo11-cls-resnet18.yaml",
+                "yolov8-cls-resnet50.yaml",
+                "yolov8-cls-resnet101.yaml",
+                # YOLO11-cls 系列
+                "yolo11n-cls.pt", "yolo11s-cls.pt", "yolo11m-cls.pt", "yolo11l-cls.pt", "yolo11x-cls.pt",
+                # YOLOv8-cls 系列
+                "yolov8n-cls.pt", "yolov8s-cls.pt", "yolov8m-cls.pt", "yolov8l-cls.pt", "yolov8x-cls.pt",
+                # YOLO12-cls 系列
+                "yolo12n-cls.pt", "yolo12s-cls.pt", "yolo12m-cls.pt", "yolo12-cls.yaml",
             ],
             "🌐 World Detection (開放詞彙)": [
                 "yolov8s-world.pt", "yolov8m-world.pt", "yolov8l-world.pt",
@@ -336,6 +343,13 @@ class TrainConfigPageWidget(QWidget):
         if hasattr(self, 'model_dl_combo') and task_text in self.model_presets:
             self.model_dl_combo.clear()
             self.model_dl_combo.addItems(self.model_presets[task_text])
+
+        # 分類任務標準解析度預設為 224
+        if hasattr(self, 'imgsz_spin'):
+            if "Classify" in task_text and self.imgsz_spin.value() == 640:
+                self.imgsz_spin.setValue(224)
+            elif "Classify" not in task_text and self.imgsz_spin.value() == 224:
+                self.imgsz_spin.setValue(640)
 
     def _browse_local_scan_dir(self):
         folder = QFileDialog.getExistingDirectory(self, "選擇掃描資料夾", self.local_scan_dir.text())

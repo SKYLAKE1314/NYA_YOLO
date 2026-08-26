@@ -97,8 +97,15 @@ class LiveTrainPageWidget(QWidget):
         if "box_loss" in m: self.box_data.append(m["box_loss"])
         if "cls_loss" in m: self.cls_data.append(m["cls_loss"])
         if "dfl_loss" in m: self.dfl_data.append(m["dfl_loss"])
-        if "map50" in m: self.map50_data.append(m["map50"])
-        if "map50_95" in m: self.map95_data.append(m["map50_95"])
+        if "map50" in m:
+            self.map50_data.append(m["map50"])
+        elif "top1_acc" in m:
+            self.map50_data.append(m["top1_acc"])
+
+        if "map50_95" in m:
+            self.map95_data.append(m["map50_95"])
+        elif "top5_acc" in m:
+            self.map95_data.append(m["top5_acc"])
 
         self.curve_box.setData(self.epochs_data[:len(self.box_data)], self.box_data)
         self.curve_cls.setData(self.epochs_data[:len(self.cls_data)], self.cls_data)
