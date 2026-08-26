@@ -308,7 +308,7 @@ class TrainConfigPageWidget(QWidget):
         # 6. 控制按鈕
         btn_row = QHBoxLayout()
         self.btn_start_train = QPushButton("▶ 開始模型訓練")
-        self.btn_start_train.setObjectName("GoogleAmberButton")
+        self.btn_start_train.setObjectName("GooglePrimaryButton")
         self.btn_start_train.clicked.connect(self._on_start_train)
 
         btn_row.addStretch()

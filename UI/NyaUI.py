@@ -34,7 +34,7 @@ from config_manager import load_ui_cache, save_ui_cache
 from workers import (
     ConvertWorker, DataCheckWorker, TrainWorker,
     InferenceWorker, ExportWorker, CudaCheckWorker,
-    PerfMonitorThread
+    PerfMonitorThread, AutoAnnotateWorker
 )
 from components import (
     GoogleHeaderWidget, GoogleSidebarWidget, show_environment_dialog
@@ -71,8 +71,8 @@ class NyaUI(QMainWindow):
         if os.path.exists(ICON_PATH):
             self.setWindowIcon(QIcon(ICON_PATH))
 
-        self.theme_mode = "system"
-        self.dark_mode = detect_system_dark_mode()
+        self.theme_mode = "dark"
+        self.dark_mode = True
 
         # 線程控制器
         self.train_worker = None
@@ -81,6 +81,7 @@ class NyaUI(QMainWindow):
         self.datacheck_worker = None
         self.export_worker = None
         self.cuda_worker = None
+        self.auto_annotate_worker = None
 
         self.init_ui()
         self.restore_all_settings_from_cache()
@@ -127,6 +128,8 @@ class NyaUI(QMainWindow):
         self.page_dataprep.start_convert_requested.connect(self.start_convert)
         self.page_dataprep.start_datacheck_requested.connect(self.start_datacheck)
         self.page_dataprep.jump_to_train_requested.connect(self.on_halcon_jump_to_train)
+        self.page_dataprep.start_auto_annotate_requested.connect(self.start_auto_annotate)
+        self.page_dataprep.stop_auto_annotate_requested.connect(self.stop_auto_annotate)
 
         self.page_train_config = TrainConfigPageWidget(self)
         self.page_train_config.start_train_requested.connect(self.start_train)
@@ -158,25 +161,20 @@ class NyaUI(QMainWindow):
         self.stack.setCurrentIndex(idx)
 
     def cycle_theme_mode(self, mode_str="cycle"):
-        if self.theme_mode == "system":
+        if self.theme_mode == "dark":
             self.theme_mode = "light"
-        elif self.theme_mode == "light":
-            self.theme_mode = "dark"
         else:
-            self.theme_mode = "system"
+            self.theme_mode = "dark"
         self.apply_theme()
 
     def apply_theme(self):
-        if self.theme_mode == "system":
-            self.dark_mode = detect_system_dark_mode()
-            sys_str = " (深色)" if self.dark_mode else " (淺色)"
-            self.header.btn_theme.setText(f"⚙ 跟隨系統{sys_str}")
-        elif self.theme_mode == "light":
+        if self.theme_mode == "light":
             self.dark_mode = False
             self.header.btn_theme.setText("☀ 昨日青空")
         else:
+            self.theme_mode = "dark"
             self.dark_mode = True
-            self.header.btn_theme.setText("🌙 DARK")
+            self.header.btn_theme.setText("🌙 半月星夢")
 
         qss = GoogleAccountTheme.get_style(self.dark_mode)
         self.setStyleSheet(qss)
@@ -365,16 +363,29 @@ class NyaUI(QMainWindow):
     def start_convert(self, kwargs):
         self.convert_worker = ConvertWorker(kwargs)
         self.convert_worker.log_signal.connect(self.page_dataprep.append_log)
+        self.convert_worker.finished_signal.connect(self.on_convert_finished)
+        self.page_dataprep.btn_start_convert.setEnabled(False)
         self.convert_worker.start()
 
+    def on_convert_finished(self, success, result_msg):
+        self.page_dataprep.btn_start_convert.setEnabled(True)
+        if success:
+            self.page_train_config.data_input.setText(result_msg)
+            self.append_log(f"✨ [NYA 轉檔] 轉換完成！已自動將 config.yaml 帶入訓練配置: {result_msg}")
+        else:
+            self.append_log(f"❌ [NYA 轉檔失敗] {result_msg}")
+
     def start_datacheck(self):
-        root_dir = self.page_dataprep.dataset_input.text().strip()
-        self.datacheck_worker = DataCheckWorker(root_dir)
+        target_path = self.page_dataprep.dataset_input.text().strip()
+        if not target_path or not os.path.exists(target_path):
+            self.page_dataprep.append_log(f"❌ 請先指定有效的 Dataset 根目錄或 config.yaml 路徑: {target_path}")
+            return
+        self.datacheck_worker = DataCheckWorker(target_path)
         self.datacheck_worker.log_signal.connect(self.page_dataprep.append_log)
         self.datacheck_worker.finished_signal.connect(self.on_datacheck_finished)
         self.datacheck_worker.start()
 
-    def on_datacheck_finished(self, sample_items):
+    def on_datacheck_finished(self, sample_items, verify_dir=""):
         # 繪製 DataCheck 驗證圖
         grid_layout = self.page_dataprep.grid_layout
         while grid_layout.count():
@@ -382,13 +393,56 @@ class NyaUI(QMainWindow):
             if item.widget():
                 item.widget().deleteLater()
 
+        if isinstance(sample_items, str):
+            verify_dir = sample_items
+            sample_items = []
+            if os.path.exists(verify_dir):
+                for f in os.listdir(verify_dir):
+                    if f.lower().endswith(('.jpg', '.png', '.bmp', '.webp', '.jpeg')):
+                        sample_items.append({"img_path": os.path.join(verify_dir, f), "name": f})
+
         for i, item in enumerate(sample_items[:12]):
             lbl = QLabel()
-            lbl.setFixedSize(180, 180)
-            lbl.setStyleSheet("border: 1px solid rgba(128,128,128,0.3); border-radius: 8px;")
-            pixmap = QPixmap(item["img_path"]).scaled(180, 180, Qt.KeepAspectRatio, Qt.SmoothTransformation)
-            lbl.setPixmap(pixmap)
+            lbl.setFixedSize(160, 160)
+            lbl.setAlignment(Qt.AlignCenter)
+            lbl.setStyleSheet("border: 1px solid rgba(128,128,128,0.3); border-radius: 8px; background: rgba(0,0,0,0.25);")
+            pixmap = QPixmap(item["img_path"])
+            if not pixmap.isNull():
+                lbl.setPixmap(pixmap.scaled(156, 156, Qt.KeepAspectRatio, Qt.SmoothTransformation))
+            b_cnt = item.get("box_count", "")
+            tip = f"{item.get('name', '')} ({b_cnt} 個標註)" if b_cnt != "" else item.get('name', '')
+            lbl.setToolTip(tip)
             grid_layout.addWidget(lbl, i // 3, i % 3)
+
+        if sample_items:
+            self.append_log(f"✨ [DataCheck] 驗證網格已更新，顯示 {min(12, len(sample_items))} 張畫框預覽圖！")
+
+    # --- AI 自動標注 ---
+    def start_auto_annotate(self, data):
+        self.auto_annotate_worker = AutoAnnotateWorker(
+            model_path=data["model_path"],
+            source_dir=data["source_dir"],
+            project_root=data["project_root"],
+            project_name=data["project_name"],
+            conf=data["conf"],
+            iou=data["iou"],
+            imgsz=data["imgsz"],
+            device=data["device"],
+            world_prompts=data["world_prompts"],
+            task_type=data["task_type"],
+            auto_split=data["auto_split"],
+            split_ratio=data["split_ratio"]
+        )
+        self.auto_annotate_worker.log_signal.connect(self.page_dataprep.append_auto_log)
+        self.auto_annotate_worker.progress_signal.connect(self.page_dataprep.update_auto_progress)
+        self.auto_annotate_worker.status_signal.connect(self.page_dataprep.update_auto_status)
+        self.auto_annotate_worker.preview_signal.connect(self.page_dataprep.update_auto_preview)
+        self.auto_annotate_worker.finished_signal.connect(self.page_dataprep.on_auto_annotate_finished)
+        self.auto_annotate_worker.start()
+
+    def stop_auto_annotate(self):
+        if self.auto_annotate_worker:
+            self.auto_annotate_worker.stop()
 
     # --- 導出與 CUDA 診斷 ---
     def start_export(self, data):
@@ -425,6 +479,14 @@ class NyaUI(QMainWindow):
             "batch_size": self.page_train_config.batch_spin.value(),
             "imgsz": self.page_train_config.imgsz_spin.value(),
             "device": self.page_train_config.device_input.text().strip(),
+            "auto_proj_name": self.page_dataprep.auto_proj_name_input.text().strip(),
+            "auto_proj_root": self.page_dataprep.auto_proj_root_input.text().strip(),
+            "auto_source_dir": self.page_dataprep.auto_source_input.text().strip(),
+            "auto_model_path": self.page_dataprep.auto_model_input.text().strip(),
+            "auto_world_prompts": self.page_dataprep.auto_world_prompt_input.text().strip(),
+            "auto_conf_val": self.page_dataprep.auto_conf_spin.value(),
+            "auto_iou_val": self.page_dataprep.auto_iou_spin.value(),
+            "theme_mode": self.theme_mode,
         }
         save_ui_cache(cache)
 
@@ -432,6 +494,11 @@ class NyaUI(QMainWindow):
         cache = load_ui_cache()
         if not cache:
             return
+        if "theme_mode" in cache and cache["theme_mode"] in ("dark", "light"):
+            self.theme_mode = cache["theme_mode"]
+        else:
+            self.theme_mode = "dark"
+
         if "infer_model_path" in cache and cache["infer_model_path"]:
             self.page_inference.infer_model_input.setText(cache["infer_model_path"])
         if "infer_source_path" in cache and cache["infer_source_path"]:
@@ -461,6 +528,21 @@ class NyaUI(QMainWindow):
             self.page_train_config.imgsz_spin.setValue(int(cache["imgsz"]))
         if "device" in cache and cache["device"]:
             self.page_train_config.device_input.setText(cache["device"])
+
+        if "auto_proj_name" in cache and cache["auto_proj_name"]:
+            self.page_dataprep.auto_proj_name_input.setText(cache["auto_proj_name"])
+        if "auto_proj_root" in cache and cache["auto_proj_root"]:
+            self.page_dataprep.auto_proj_root_input.setText(cache["auto_proj_root"])
+        if "auto_source_dir" in cache and cache["auto_source_dir"]:
+            self.page_dataprep.auto_source_input.setText(cache["auto_source_dir"])
+        if "auto_model_path" in cache and cache["auto_model_path"]:
+            self.page_dataprep.auto_model_input.setText(cache["auto_model_path"])
+        if "auto_world_prompts" in cache and cache["auto_world_prompts"]:
+            self.page_dataprep.auto_world_prompt_input.setText(cache["auto_world_prompts"])
+        if "auto_conf_val" in cache:
+            self.page_dataprep.auto_conf_spin.setValue(float(cache["auto_conf_val"]))
+        if "auto_iou_val" in cache:
+            self.page_dataprep.auto_iou_spin.setValue(float(cache["auto_iou_val"]))
 
     def init_perf_monitor(self):
         self.perf_thread = PerfMonitorThread(self)

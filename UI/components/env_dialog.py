@@ -196,7 +196,7 @@ def show_environment_dialog(parent=None, auto_on_startup=False):
 
     lines = []
     lines.append(f"Python 版本: {status['python_version']}")
-    lines.append(f"執行模式: {'已打包為獨立 .exe 可執行檔' if status['frozen_exe'] else '開發環境 (Python 源碼)'}")
+    lines.append(f"執行模式: {'預發行測試管道' if status['frozen_exe'] else '開發環境'}")
     lines.append("-" * 52)
     
     if status["pytorch"]["installed"]:

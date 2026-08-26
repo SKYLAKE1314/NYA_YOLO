@@ -51,7 +51,7 @@ class LiveTrainPageWidget(QWidget):
         header_box.addWidget(self.btn_stop_train)
         prog_layout.addLayout(header_box)
 
-        self.lbl_train_status = QLabel("待命 (Ready)...")
+        self.lbl_train_status = QLabel("準備好...")
         self.progress_bar = QProgressBar()
         self.progress_bar.setValue(0)
 
@@ -116,7 +116,9 @@ class LiveTrainPageWidget(QWidget):
     def update_plot_styles(self):
         txt_col = "#EDE8FF" if self.dark_mode else "#1C1B1F"
         sub_col = "#B8AEDD" if self.dark_mode else "#49454F"
-        leg_bg = (20, 15, 38, 180) if self.dark_mode else (255, 255, 255, 220)
+        bg_col = "#1E1A2E" if self.dark_mode else "#F8F9FA"
+        grid_col = (180, 170, 220, 40) if self.dark_mode else (0, 0, 0, 35)
+        leg_bg = (28, 23, 44, 200) if self.dark_mode else (255, 255, 255, 220)
 
         if self.dark_mode:
             pen_box = pg.mkPen('#FFA726', width=2.5)
@@ -139,14 +141,15 @@ class LiveTrainPageWidget(QWidget):
 
         plots = [(self.plot_loss, "Loss 訓練損失動態"), (self.plot_map, "mAP 驗證精度動態")]
         for p, title_str in plots:
-            p.setBackground('transparent')
+            p.setBackground(bg_col)
             p.setTitle(f"<span style='color: {txt_col}; font-size: 14px; font-weight: bold;'>{title_str}</span>")
+            plot_item = p.getPlotItem()
             for ax_name in ['left', 'bottom']:
-                ax = p.getPlotItem().getAxis(ax_name)
+                ax = plot_item.getAxis(ax_name)
                 ax.setPen(pg.mkPen(sub_col, width=1))
                 ax.setTextPen(pg.mkPen(txt_col))
                 ax.setLabel(color=txt_col)
-            legend = p.getPlotItem().legend
+            legend = plot_item.legend
             if legend:
                 legend.setPen(pg.mkPen(sub_col, width=1))
                 legend.setBrush(pg.mkBrush(*leg_bg))

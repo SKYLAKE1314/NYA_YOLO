@@ -210,11 +210,18 @@ class GoogleAccountTheme:
         }}
 
         /* Cards */
-        QFrame#MetroTileCard, QFrame#GoogleCard {{
+        QFrame#GoogleCard {{
             background-color: {card_bg};
             border: 1px solid {border};
             border-radius: 16px;
-            padding: 24px;
+            padding: 20px;
+        }}
+
+        QFrame#MetroTileCard {{
+            background-color: {card_bg};
+            border: 1px solid {border};
+            border-radius: 14px;
+            padding: 12px 16px;
         }}
 
         QFrame#MetroTileCard:hover {{
@@ -223,10 +230,16 @@ class GoogleAccountTheme:
         }}
 
         QLabel#MetroTileTitle {{
-            font-size: 16px;
+            font-size: 14px;
             font-weight: 600;
             color: {text_p};
-            margin-bottom: 4px;
+            margin-bottom: 2px;
+        }}
+
+        QLabel#HomeFooterText {{
+            font-size: 11px;
+            color: {text_s};
+            font-weight: 400;
         }}
 
         QLabel#MetroTileDesc, QLabel#GoogleCardSubtitle {{
@@ -340,6 +353,7 @@ class GoogleAccountTheme:
             background-color: #BF360C;
         }}
         
+        QPushButton#GooglePrimaryButton:disabled,
         QPushButton#GoogleAmberButton:disabled {{
             background-color: {border};
             color: {text_s};

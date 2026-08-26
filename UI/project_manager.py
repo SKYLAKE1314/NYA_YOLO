@@ -32,8 +32,25 @@ class HalconProjectManager:
         ]:
             os.makedirs(p, exist_ok=True)
 
-    def setup_project_from_folders(self, image_folder, label_folder=None, copy_files=True, log_func=print):
+    def clear_project(self):
+        """徹底清理專案目錄下的所有舊圖片、標註與資料集快取"""
+        for d in [self.raw_images_dir, self.labels_dir, self.train_images_dir, self.train_labels_dir, self.val_images_dir, self.val_labels_dir]:
+            if os.path.exists(d):
+                shutil.rmtree(d)
+            os.makedirs(d, exist_ok=True)
+        if os.path.exists(self.dataset_dir):
+            for f in os.listdir(self.dataset_dir):
+                fp = os.path.join(self.dataset_dir, f)
+                if os.path.isfile(fp):
+                    try:
+                        os.remove(fp)
+                    except Exception:
+                        pass
+
+    def setup_project_from_folders(self, image_folder, label_folder=None, copy_files=True, clear_existing=False, log_func=print):
         """匯入圖像與可選的已有標註集 (支援 TXT / XML / JSON 自動轉 YOLO 格式)"""
+        if clear_existing:
+            self.clear_project()
         self._ensure_dirs()
         exts = ('.jpg', '.jpeg', '.png', '.bmp', '.webp')
 
@@ -83,13 +100,23 @@ class HalconProjectManager:
         return self.raw_images_dir, self.labels_dir
 
     def split_and_build_dataset(self, val_ratio=0.2, class_names=None, log_func=print):
-        """一鍵拆分 80% Train / 20% Val 並生成 YOLO config.yaml"""
+        """一鍵拆分 80% Train / 20% Val 並徹底清理舊檔案與生成 YOLO config.yaml"""
         self._ensure_dirs()
 
         for d in [self.train_images_dir, self.train_labels_dir, self.val_images_dir, self.val_labels_dir]:
             if os.path.exists(d):
                 shutil.rmtree(d)
             os.makedirs(d, exist_ok=True)
+
+        # 清理 dataset 根目錄及子目錄下的舊快取檔案
+        for d in [self.dataset_dir, self.train_images_dir, self.train_labels_dir, self.val_images_dir, self.val_labels_dir]:
+            if os.path.exists(d):
+                for cf in os.listdir(d):
+                    if cf.endswith(('.cache', '.cache.npy')):
+                        try:
+                            os.remove(os.path.join(d, cf))
+                        except Exception:
+                            pass
 
         exts = ('.jpg', '.jpeg', '.png', '.bmp', '.webp')
         all_images = [f for f in os.listdir(self.raw_images_dir) if f.lower().endswith(exts)]
@@ -139,12 +166,16 @@ class HalconProjectManager:
         }
 
         yaml_path = os.path.join(self.dataset_dir, "config.yaml")
+        if os.path.exists(yaml_path):
+            try:
+                os.remove(yaml_path)
+            except Exception:
+                pass
         with open(yaml_path, 'w', encoding='utf-8') as f:
             yaml.dump(config, f, sort_keys=False, allow_unicode=True)
 
         log_func(f"✨ [NYA 工作流] 拆分完成！訓練集: {len(train_set)} 張, 驗證集: {len(val_set)} 張")
         log_func(f"📄 config.yaml 已生成於: {yaml_path}")
-
         return {
             "config_path": yaml_path,
             "train_count": len(train_set),
