@@ -4,7 +4,7 @@
     <SchemaVersion>2.0</SchemaVersion>
     <ProjectGuid>fac4769b-8baf-4cab-b4ad-e2ddd710db63</ProjectGuid>
     <ProjectHome>.</ProjectHome>
-    <StartupFile>tools\convertToONNX.py</StartupFile>
+    <StartupFile>UI\NyaYOLOStudio.py</StartupFile>
     <SearchPath>
     </SearchPath>
     <WorkingDirectory>.</WorkingDirectory>

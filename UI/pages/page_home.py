@@ -42,7 +42,7 @@ class HomePageWidget(QWidget):
         """)
         avatar_frame.setText("✨")
 
-        user_title = QLabel("NYA AI Studio 智慧深度學習視覺平台")
+        user_title = QLabel("NYA AI Studio 深度學習平臺")
         user_title.setStyleSheet("font-size: 20px; font-weight: bold; margin-top: 4px;")
         user_title.setAlignment(Qt.AlignCenter)
 

@@ -451,7 +451,7 @@ class DataPrepPageWidget(QWidget):
         self.auto_progress_bar.setValue(0)
         left_layout3.addWidget(self.auto_progress_bar)
 
-        self.auto_stat_lbl = QLabel("待命：設定參數後點擊【啟動 AI 批次自動標注】...")
+        self.auto_stat_lbl = QLabel("準備好：設定參數後點擊【啟動 AI 批次自動標注】...")
         self.auto_stat_lbl.setStyleSheet("font-size: 11px; opacity: 0.9;")
         self.auto_stat_lbl.setWordWrap(True)
         left_layout3.addWidget(self.auto_stat_lbl)

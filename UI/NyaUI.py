@@ -229,7 +229,7 @@ class NyaUI(QMainWindow):
             if torch.cuda.is_available():
                 dev_name = torch.cuda.get_device_name(0)
                 self.set_compute_mode(f"CUDA  ({dev_name})", "0", "nvidia")
-                self.append_log(f"⚡ [硬體加速診斷] 檢測到 NVIDIA GPU ({dev_name})，已自動設為預設算力加速裝置 (Device: 0)！")
+                self.append_log(f"[硬體加速計劃] 檢測到 NVIDIA GPU ({dev_name})，已自動設為預設算力加速裝置 (Device: 0)！")
                 return
         except Exception:
             pass
@@ -237,7 +237,7 @@ class NyaUI(QMainWindow):
         try:
             import openvino
             self.set_compute_mode("OpenVINO  (Intel)", "cpu", "openvino")
-            self.append_log("⚡ [硬體加速診斷] 檢測到 Intel OpenVINO，已自動設為預設加速裝置！")
+            self.append_log("[硬體加速計劃] 檢測到 Intel OpenVINO，已自動設為預設加速裝置！")
             return
         except Exception:
             pass
@@ -246,13 +246,13 @@ class NyaUI(QMainWindow):
             import torch
             if hasattr(torch.backends, 'mps') and torch.backends.mps.is_available():
                 self.set_compute_mode("MPS   (Apple)", "mps", "apple")
-                self.append_log("⚡ [硬體加速診斷] 檢測到 Apple Silicon MPS，已自動設為預設加速裝置！")
+                self.append_log("[硬體加速計劃] 檢測到 Apple Silicon MPS，已自動設為預設加速裝置！")
                 return
         except Exception:
             pass
 
         self.set_compute_mode("CPU   Mode", "cpu", "cpu")
-        self.append_log("ℹ️ [硬體加速診斷] 當前使用 CPU 計算模式。")
+        self.append_log("ℹ️ [硬體加速計劃] 當前使用 CPU 計算模式。")
 
     def on_halcon_jump_to_train(self, config_path):
         self.page_train_config.data_input.setText(config_path)

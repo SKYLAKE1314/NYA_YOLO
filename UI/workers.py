@@ -822,10 +822,16 @@ class InferenceWorker(QThread):
                         break
                     frame_bgr = res.plot()
                     qimg = self._cv_to_qimage(frame_bgr)
-                    det_count = len(res.boxes) if res.boxes is not None else 0
-                    info = f"✅ 檢測完成 | 檢測目標數: {det_count}"
-                    if res.boxes is not None and res.boxes.id is not None:
-                        info += f" | 追蹤ID數: {len(res.boxes.id)}"
+                    if hasattr(res, "probs") and res.probs is not None:
+                        top1_idx = int(res.probs.top1)
+                        top1_name = res.names.get(top1_idx, str(top1_idx))
+                        top1_conf = float(res.probs.top1conf)
+                        info = f"🏷 分類判定: [{top1_name}] (信心度: {top1_conf*100:.1f}%)"
+                    else:
+                        det_count = len(res.boxes) if res.boxes is not None else 0
+                        info = f"✅ 檢測完成 | 檢測目標數: {det_count}"
+                        if res.boxes is not None and res.boxes.id is not None:
+                            info += f" | 追蹤ID數: {len(res.boxes.id)}"
                     self.frame_signal.emit(qimg, info)
                     self.status_signal.emit(info)
                     time.sleep(0.03)
@@ -859,8 +865,13 @@ class InferenceWorker(QThread):
                     frame_count += 1
                     elapsed = time.time() - fps_start_time
                     fps = frame_count / elapsed if elapsed > 0 else 0
-                    det_count = len(results[0].boxes) if len(results) > 0 and results[0].boxes is not None else 0
-                    info = f"FPS: {fps:.1f} | 檢測目標: {det_count}"
+                    if len(results) > 0 and hasattr(results[0], "probs") and results[0].probs is not None:
+                        p = results[0].probs
+                        t_name = results[0].names.get(int(p.top1), str(p.top1))
+                        info = f"FPS: {fps:.1f} | 🏷 分類: [{t_name}] ({float(p.top1conf)*100:.1f}%)"
+                    else:
+                        det_count = len(results[0].boxes) if len(results) > 0 and results[0].boxes is not None else 0
+                        info = f"FPS: {fps:.1f} | 檢測目標: {det_count}"
 
                     self.frame_signal.emit(qimg, info)
                     self.status_signal.emit(info)

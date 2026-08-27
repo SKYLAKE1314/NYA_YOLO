@@ -1,7 +1,3 @@
-"""
-InferencePageWidget — 推理與目標追蹤測試頁面模組
-提供模型與測試來源選取、Predict/Track/World/Text 模式切換及影像畫布渲染
-"""
 
 from PySide6.QtWidgets import (
     QWidget, QHBoxLayout, QVBoxLayout, QLabel, QLineEdit, QPushButton,

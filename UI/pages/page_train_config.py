@@ -211,7 +211,7 @@ class TrainConfigPageWidget(QWidget):
         # 5. 訓練參數模板 (Presets)
         preset_layout = QHBoxLayout()
         preset_layout.setContentsMargins(12, 12, 12, 0)
-        preset_lbl = QLabel("🎯 預設參數模板:")
+        preset_lbl = QLabel("預設參數模板:")
         preset_lbl.setStyleSheet("font-weight: bold; color: #D97706;")
         self.preset_combo = QComboBox()
         self.preset_combo.addItems([
