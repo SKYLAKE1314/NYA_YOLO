@@ -649,8 +649,27 @@ class TrainWorker(QThread):
             data_cfg_path = self.kwargs.get("data")
             self._clean_dataset_caches(data_cfg_path)
 
+            weights_dir = os.path.join(PARENT_DIR, "weights")
+            os.makedirs(weights_dir, exist_ok=True)
+
+            # 若 weights 目錄下已有該權重，優先使用 weights/ 目錄路徑
+            if not os.path.isabs(str(model_path)) and os.path.exists(os.path.join(weights_dir, str(model_path))):
+                model_path = os.path.join(weights_dir, str(model_path))
+
             self.log_signal.emit(f"載入模型結構/權重: {model_path}")
             model = YOLO(model_path)
+
+            # 若下載的預訓練權重產生在根目錄，自動歸檔至 weights/ 目錄
+            base_model_name = os.path.basename(str(model_path))
+            root_weight_candidate = os.path.join(PARENT_DIR, base_model_name)
+            if os.path.exists(root_weight_candidate) and base_model_name.endswith('.pt'):
+                target_in_weights = os.path.join(weights_dir, base_model_name)
+                if not os.path.exists(target_in_weights):
+                    try:
+                        shutil.copy2(root_weight_candidate, target_in_weights)
+                        self.log_signal.emit(f"💾 已自動將下載的預訓練權重歸檔至 weights/ 目錄: {target_in_weights}")
+                    except Exception:
+                        pass
 
             # 分類任務相容性處理：Ultralytics 要求 classification dataset 必須為目錄路徑 (不可為 config.yaml 檔案)
             if getattr(model, "task", "") == "classify" or "-cls" in str(model_path).lower() or "resnet" in str(model_path).lower():
@@ -818,6 +837,10 @@ class InferenceWorker(QThread):
         self.status_signal.emit("⏳ 正在啟動推理引擎與載入模型...")
         self.log_signal.emit(f"🎬 啟動 {self.mode.upper()} 推理/追蹤引擎...")
         try:
+            weights_dir = os.path.join(PARENT_DIR, "weights")
+            if not os.path.isabs(str(self.model_path)) and os.path.exists(os.path.join(weights_dir, str(self.model_path))):
+                self.model_path = os.path.join(weights_dir, str(self.model_path))
+
             model = YOLO(self.model_path)
             
             # World Detection / Text Detection 類別設定
@@ -942,6 +965,10 @@ class ExportWorker(QThread):
         os.environ["ULTRALYTICS_AUTOINSTALL"] = "0"
         self.log_signal.emit(f"🚀 開始導出模型 [{self.fmt.upper()}] 格式...")
         try:
+            weights_dir = os.path.join(PARENT_DIR, "weights")
+            if not os.path.isabs(str(self.model_path)) and os.path.exists(os.path.join(weights_dir, str(self.model_path))):
+                self.model_path = os.path.join(weights_dir, str(self.model_path))
+
             model = YOLO(self.model_path)
             try:
                 export_path = model.export(

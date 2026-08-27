@@ -134,8 +134,9 @@ class TrainConfigPageWidget(QWidget):
 
         loc_dir_row = QHBoxLayout()
         self.local_scan_dir = QLineEdit()
-        _default_runs = os.path.join(PARENT_DIR, "runs")
-        self.local_scan_dir.setText(_default_runs if os.path.exists(_default_runs) else PARENT_DIR)
+        _default_weights = os.path.join(PARENT_DIR, "weights")
+        os.makedirs(_default_weights, exist_ok=True)
+        self.local_scan_dir.setText(_default_weights)
         self.local_scan_dir.setPlaceholderText("掃描資料夾路徑...")
         btn_scan_dir = QPushButton("📂")
         btn_scan_dir.setFixedWidth(36)
@@ -153,7 +154,7 @@ class TrainConfigPageWidget(QWidget):
         self.local_model_combo.setPlaceholderText("（點擊 🔄 掃描後顯示找到的 .pt 文件）")
         loc_main.addWidget(self.local_model_combo)
 
-        loc_hint = QLabel("💡 掃描後從下拉清單選擇，或直接在上方路徑欄貼入路徑")
+        loc_hint = QLabel("💡 預設掃描 weights/ 與 runs/ 本地模型庫，亦可指定其他目錄")
         loc_hint.setStyleSheet("font-size: 11px;")
         loc_main.addWidget(loc_hint)
         model_tabs.addTab(tab_local, "📁 Local")
@@ -332,6 +333,9 @@ class TrainConfigPageWidget(QWidget):
         scroll.setWidget(page)
         root_layout.addWidget(scroll)
 
+        # 初始自動掃描本地模型庫
+        self._refresh_local_models()
+
     def get_selected_model_path(self):
         idx = self.model_tabs_widget.currentIndex()
         if idx == 0:
@@ -341,11 +345,19 @@ class TrainConfigPageWidget(QWidget):
                 import re
                 m = re.search(r'\(([^)]+)\)', raw)
                 if m and (m.group(1).endswith(('.yaml', '.pt', '.onnx', '.engine'))):
-                    return m.group(1).strip()
+                    raw = m.group(1).strip()
+            
+            # 若 weights/ 目錄下已存在該權重/設定檔，優先回傳 weights/ 內的絕對路徑
+            weights_dir = os.path.join(PARENT_DIR, "weights")
+            candidate = os.path.join(weights_dir, raw)
+            if os.path.exists(candidate):
+                return candidate
             return raw
         elif idx == 1:
             sel = self.local_model_combo.currentText().strip()
-            return sel if sel else self.local_scan_dir.text().strip()
+            if sel and not sel.startswith("（"):
+                return sel
+            return self.local_scan_dir.text().strip()
         else:
             return self.model_export_input.text().strip()
 
@@ -374,12 +386,27 @@ class TrainConfigPageWidget(QWidget):
         if not hasattr(self, 'local_model_combo') or not hasattr(self, 'local_scan_dir'):
             return
         scan_root = self.local_scan_dir.text().strip()
+        scan_targets = []
+        if scan_root and os.path.isdir(scan_root):
+            scan_targets.append(scan_root)
+        
+        weights_dir = os.path.join(PARENT_DIR, "weights")
+        runs_dir = os.path.join(PARENT_DIR, "runs")
+        for d in [weights_dir, runs_dir]:
+            if os.path.isdir(d) and d not in scan_targets:
+                scan_targets.append(d)
+
         found = []
-        if os.path.isdir(scan_root):
-            for dirpath, _, filenames in os.walk(scan_root):
+        seen = set()
+        for root_d in scan_targets:
+            for dirpath, _, filenames in os.walk(root_d):
                 for f in filenames:
                     if f.endswith(('.pt', '.yaml', '.onnx', '.engine')):
-                        found.append(os.path.join(dirpath, f))
+                        full_p = os.path.join(dirpath, f)
+                        if full_p not in seen:
+                            seen.add(full_p)
+                            found.append(full_p)
+
         self.local_model_combo.clear()
         if found:
             self.local_model_combo.addItems(found)
