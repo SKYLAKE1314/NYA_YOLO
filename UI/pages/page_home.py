@@ -161,7 +161,7 @@ class HomePageWidget(QWidget):
         layout.addLayout(metro_grid)
 
         # 5. 授權宣告 (單行置中、清晰可讀)
-        footer_lbl = QLabel("本程式碼基於 Ultralytics YOLO • 使用 MIT License 授權 • 散佈與再發行請遵循開源授權條款 • by SKYLAKE")
+        footer_lbl = QLabel("本程式碼基於 Ultralytics YOLO • 使用 MIT License 授權 • 散佈與再發行請遵循開源授權條款 • Designed by SKYLAKE")
         footer_lbl.setObjectName("HomeFooterText")
         footer_lbl.setWordWrap(False)
         footer_lbl.setAlignment(Qt.AlignCenter)

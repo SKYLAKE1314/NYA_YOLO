@@ -56,6 +56,8 @@ class ConvertWorker(QThread):
             self.task_type = kwargs.get("task_type", "detect")
             self.anno_folder = kwargs.get("anno_folder") or kwargs.get("anno_dir") or ""
             self.image_folder = kwargs.get("image_folder") or kwargs.get("image_dir") or ""
+            self.ok_folder = kwargs.get("ok_folder") or kwargs.get("ok_dir") or ""
+            self.ng_folder = kwargs.get("ng_folder") or kwargs.get("ng_dir") or ""
             self.out_folder = kwargs.get("out_folder") or kwargs.get("output_root") or kwargs.get("dataset_dir") or ""
             self.use_auto = kwargs.get("use_auto", kwargs.get("auto_class", True))
             raw_classes = kwargs.get("manual_classes", kwargs.get("class_str", []))
@@ -70,134 +72,110 @@ class ConvertWorker(QThread):
 
     def run(self):
         try:
-            self.log_signal.emit(f"開始 [{self.task_type.upper()}] 資料集轉換作業...")
-            if not self.anno_folder or not os.path.exists(self.anno_folder):
-                self.finished_signal.emit(False, f"標註資料夾不存在: {self.anno_folder}")
-                return
-
-            # 若未設定影像資料夾，預設與標註資料夾相同
-            if not self.image_folder or not os.path.exists(self.image_folder):
-                self.image_folder = self.anno_folder
-
-            # 決策 Classes
-            if self.use_auto:
-                classes = auto_detect_classes(self.anno_folder, self.anno_folder)
-                self.log_signal.emit(f"自動檢測到的類別名單 ({len(classes)}): {classes}")
-            else:
-                classes = self.manual_classes
-                self.log_signal.emit(f"手動指定的類別名單 ({len(classes)}): {classes}")
-
-            if not classes:
-                self.finished_signal.emit(False, "類別名單為空，請檢查標註檔案或手動設定類別！")
-                return
-
-            # 建立並清理目錄結構 train/images, train/labels, val/images, val/labels
             dataset_root = self.out_folder
-            train_images = os.path.join(dataset_root, "train", "images")
-            train_labels = os.path.join(dataset_root, "train", "labels")
-            val_images = os.path.join(dataset_root, "val", "images")
-            val_labels = os.path.join(dataset_root, "val", "labels")
+            if not dataset_root:
+                self.finished_signal.emit(False, "請指定有效的 Dataset 輸出根目錄！")
+                return
 
-            for p in [train_images, train_labels, val_images, val_labels]:
-                if os.path.exists(p):
-                    shutil.rmtree(p)
-                os.makedirs(p, exist_ok=True)
+            os.makedirs(dataset_root, exist_ok=True)
+            img_exts = ('.jpg', '.jpeg', '.png', '.bmp', '.webp', '.tif', '.tiff', '.JPG', '.PNG', '.JPEG', '.BMP')
+            import random
 
-            # 清理任何殘留的 .cache 快取檔
-            for p in [dataset_root, train_labels, val_labels, train_images, val_images]:
-                if os.path.exists(p):
-                    for cf in os.listdir(p):
-                        if cf.endswith(('.cache', '.cache.npy')):
-                            try:
-                                os.remove(os.path.join(p, cf))
-                            except Exception:
-                                pass
+            # ── 任務分支 1: 工業二分類 (OK / NG 良品與不良品直接建構) ──────
+            if self.task_type == 'binary_cls' or (self.ok_folder and self.ng_folder):
+                self.log_signal.emit("⚖ 啟動【工業二分類 OK / NG】資料集自動建構流程...")
+                if not os.path.exists(self.ok_folder) and not os.path.exists(self.ng_folder):
+                    self.finished_signal.emit(False, "請至少指定有效的 OK 或 NG 圖片資料夾！")
+                    return
 
-            classes_txt_path = os.path.join(dataset_root, "classes.txt")
-            save_classes_list(classes, classes_txt_path)
-            self.log_signal.emit(f"📁 classes.txt 已保存至: {classes_txt_path}")
+                classes = ["OK", "NG"]
+                # 建立 train/OK, train/NG, val/OK, val/NG
+                for sub in ["train", "val"]:
+                    for c in classes:
+                        d = os.path.join(dataset_root, sub, c)
+                        if os.path.exists(d):
+                            shutil.rmtree(d)
+                        os.makedirs(d, exist_ok=True)
 
-            # ── 任務分支 A: 圖像二分類 / 多分類 (Classify) ────────────
-            if self.task_type == 'classify':
-                self.log_signal.emit("🏷 啟動圖像分類 / 二分類資料集架構生成...")
-                # 建立 train/類別 與 val/類別 資料夾
-                for cname in classes:
-                    os.makedirs(os.path.join(dataset_root, "train", cname), exist_ok=True)
-                    os.makedirs(os.path.join(dataset_root, "val", cname), exist_ok=True)
+                # 清理快取
+                for cf in os.listdir(dataset_root):
+                    if cf.endswith(('.cache', '.cache.npy')):
+                        try: os.remove(os.path.join(dataset_root, cf))
+                        except Exception: pass
 
-                img_exts = ('.jpg', '.jpeg', '.png', '.bmp', '.webp', '.tif', '.tiff', '.JPG', '.PNG', '.JPEG', '.BMP')
-                
+                def process_folder(src_dir, cname):
+                    if not src_dir or not os.path.exists(src_dir):
+                        return 0, 0
+                    imgs = [os.path.join(src_dir, f) for f in os.listdir(src_dir) if f.endswith(img_exts)]
+                    random.seed(42)
+                    random.shuffle(imgs)
+                    n_val = int(len(imgs) * self.split_ratio)
+                    val_set = imgs[:n_val]
+                    train_set = imgs[n_val:]
+
+                    for p in train_set:
+                        shutil.copy2(p, os.path.join(dataset_root, "train", cname, os.path.basename(p)))
+                    for p in val_set:
+                        shutil.copy2(p, os.path.join(dataset_root, "val", cname, os.path.basename(p)))
+                    return len(train_set), len(val_set)
+
+                ok_tr, ok_val = process_folder(self.ok_folder, "OK")
+                ng_tr, ng_val = process_folder(self.ng_folder, "NG")
+
+                classes_txt_path = os.path.join(dataset_root, "classes.txt")
+                save_classes_list(classes, classes_txt_path)
+
+                config_data = {
+                    'path': dataset_root.replace("\\", "/"),
+                    'train': 'train',
+                    'val': 'val',
+                    'nc': 2,
+                    'names': classes
+                }
+                yaml_path = os.path.join(dataset_root, "config.yaml")
+                with open(yaml_path, 'w', encoding='utf-8') as f:
+                    yaml.dump(config_data, f, sort_keys=False, allow_unicode=True)
+
+                self.progress_signal.emit(100)
+                self.log_signal.emit(f"✨ 二分類 (OK / NG) 資料集整理完成！")
+                self.log_signal.emit(f"  🟢 良品 OK: 訓練集 {ok_tr} 張, 驗證集 {ok_val} 張")
+                self.log_signal.emit(f"  🔴 不良品 NG: 訓練集 {ng_tr} 張, 驗證集 {ng_val} 張")
+                self.log_signal.emit(f"📄 已生成二分類配置: {yaml_path}")
+                self.finished_signal.emit(True, yaml_path)
+                return
+
+            # ── 任務分支 2: 多分類 / 標準分類 (Multi-Class) ───────────
+            if self.task_type in ('classify', 'multi_cls'):
+                self.log_signal.emit("🏷 啟動【多分類 / 圖像分類】資料集架構生成...")
+                if not self.image_folder or not os.path.exists(self.image_folder):
+                    self.finished_signal.emit(False, f"分類影像資料夾不存在: {self.image_folder}")
+                    return
+
                 # 檢查 image_folder 是否本身含有子資料夾分類
-                subdirs = [d for d in os.listdir(self.image_folder) if os.path.isdir(os.path.join(self.image_folder, d))] if os.path.exists(self.image_folder) else []
+                subdirs = [d for d in os.listdir(self.image_folder) if os.path.isdir(os.path.join(self.image_folder, d))]
                 subdirs = [d for d in subdirs if d not in ('train', 'val', 'dataset', 'labels', 'images')]
+
+                classes = subdirs if subdirs else (self.manual_classes if self.manual_classes else ["class_0", "class_1"])
+
+                for cname in classes:
+                    for sub in ["train", "val"]:
+                        d = os.path.join(dataset_root, sub, cname)
+                        if os.path.exists(d): shutil.rmtree(d)
+                        os.makedirs(d, exist_ok=True)
 
                 classified_images = {c: [] for c in classes}
 
                 if subdirs:
-                    # Case 1: 影像來源已按子資料夾分類 (如 source/OK, source/NG)
                     for sdir in subdirs:
-                        matched_c = sdir if sdir in classes else (classes[1] if 'ng' in sdir.lower() or 'defect' in sdir.lower() else classes[0])
                         sp = os.path.join(self.image_folder, sdir)
                         for f in os.listdir(sp):
                             if f.endswith(img_exts):
-                                classified_images[matched_c].append(os.path.join(sp, f))
+                                classified_images[sdir].append(os.path.join(sp, f))
                 else:
-                    # Case 2: 平鋪影像 + XML/JSON/TXT 標註檔判斷分類
-                    all_imgs = [f for f in os.listdir(self.image_folder) if f.endswith(img_exts)] if os.path.exists(self.image_folder) else []
+                    all_imgs = [f for f in os.listdir(self.image_folder) if f.endswith(img_exts)]
                     for f in all_imgs:
-                        img_full = os.path.join(self.image_folder, f)
-                        base = os.path.splitext(f)[0]
-                        
-                        # 查找對應標註檔
-                        assigned_cls = None
-                        json_p = os.path.join(self.anno_folder, base + ".json")
-                        xml_p = os.path.join(self.anno_folder, base + ".xml")
-                        txt_p = os.path.join(self.anno_folder, base + ".txt")
+                        classified_images[classes[0]].append(os.path.join(self.image_folder, f))
 
-                        if os.path.exists(json_p):
-                            try:
-                                with open(json_p, "r", encoding="utf-8") as jf:
-                                    jdata = json.load(jf)
-                                shapes = jdata.get("shapes", [])
-                                if shapes:
-                                    first_label = shapes[0].get("label", "")
-                                    assigned_cls = first_label if first_label in classes else ("NG" if "NG" in classes else classes[-1])
-                                else:
-                                    assigned_cls = "OK" if "OK" in classes else classes[0]
-                            except Exception:
-                                pass
-
-                        elif os.path.exists(xml_p):
-                            try:
-                                import xml.etree.ElementTree as ET
-                                tree = ET.parse(xml_p)
-                                objs = tree.findall(".//object")
-                                if objs:
-                                    first_name = objs[0].findtext("name", "")
-                                    assigned_cls = first_name if first_name in classes else ("NG" if "NG" in classes else classes[-1])
-                                else:
-                                    assigned_cls = "OK" if "OK" in classes else classes[0]
-                            except Exception:
-                                pass
-
-                        elif os.path.exists(txt_p):
-                            try:
-                                with open(txt_p, "r", encoding="utf-8") as tf:
-                                    tlines = tf.read().strip().splitlines()
-                                if tlines and tlines[0].strip():
-                                    assigned_cls = "NG" if "NG" in classes else classes[-1]
-                                else:
-                                    assigned_cls = "OK" if "OK" in classes else classes[0]
-                            except Exception:
-                                pass
-
-                        if not assigned_cls:
-                            assigned_cls = "OK" if "OK" in classes else classes[0]
-
-                        classified_images[assigned_cls].append(img_full)
-
-                # 按比例拆分各類至 Train 與 Val
-                import random
                 total_train = 0
                 total_val = 0
                 for cname, img_list in classified_images.items():
@@ -217,7 +195,9 @@ class ConvertWorker(QThread):
                         shutil.copy2(p, dst)
                         total_val += 1
 
-                # 生成分類 config.yaml
+                classes_txt_path = os.path.join(dataset_root, "classes.txt")
+                save_classes_list(classes, classes_txt_path)
+
                 config_data = {
                     'path': dataset_root.replace("\\", "/"),
                     'train': 'train',
@@ -231,14 +211,45 @@ class ConvertWorker(QThread):
 
                 self.progress_signal.emit(100)
                 stat_str = ", ".join([f"{k}: {len(v)} 張" for k, v in classified_images.items()])
-                self.log_signal.emit(f"✨ 圖像分類資料集轉換完成！總 Train: {total_train} 張, Val: {total_val} 張")
+                self.log_signal.emit(f"✨ 多分類資料集轉換完成！總 Train: {total_train} 張, Val: {total_val} 張")
                 self.log_signal.emit(f"📊 類別分佈: {stat_str}")
                 self.log_signal.emit(f"📄 已生成分類配置: {yaml_path}")
                 self.finished_signal.emit(True, yaml_path)
                 return
 
-            # ── 任務分支 B: 目標檢測 (Detect) 與 實例分割 (Segment) ──
-            # 搜尋標註檔
+            # ── 任務分支 3: 目標檢測 (Detect) 與 實例分割 (Segment) ──
+            self.log_signal.emit(f"開始 [{self.task_type.upper()}] 資料集轉換作業...")
+            if not self.anno_folder or not os.path.exists(self.anno_folder):
+                self.finished_signal.emit(False, f"標註資料夾不存在: {self.anno_folder}")
+                return
+
+            if not self.image_folder or not os.path.exists(self.image_folder):
+                self.image_folder = self.anno_folder
+
+            if self.use_auto:
+                classes = auto_detect_classes(self.anno_folder, self.anno_folder)
+                self.log_signal.emit(f"自動檢測到的類別名單 ({len(classes)}): {classes}")
+            else:
+                classes = self.manual_classes
+                self.log_signal.emit(f"手動指定的類別名單 ({len(classes)}): {classes}")
+
+            if not classes:
+                self.finished_signal.emit(False, "類別名單為空，請檢查標註檔案或手動設定類別！")
+                return
+
+            # 建立並清理目錄結構 train/images, train/labels, val/images, val/labels
+            train_images = os.path.join(dataset_root, "train", "images")
+            train_labels = os.path.join(dataset_root, "train", "labels")
+            val_images = os.path.join(dataset_root, "val", "images")
+            val_labels = os.path.join(dataset_root, "val", "labels")
+
+            for p in [train_images, train_labels, val_images, val_labels]:
+                if os.path.exists(p): shutil.rmtree(p)
+                os.makedirs(p, exist_ok=True)
+
+            classes_txt_path = os.path.join(dataset_root, "classes.txt")
+            save_classes_list(classes, classes_txt_path)
+
             anno_files = [f for f in os.listdir(self.anno_folder) if f.lower().endswith(('.json', '.xml'))]
             if not anno_files:
                 self.finished_signal.emit(False, "標註資料夾中未找到 .json 或 .xml 標註檔案！")
@@ -270,10 +281,9 @@ class ConvertWorker(QThread):
                     count += 1
                     self.progress_signal.emit(int(count / total * 80))
 
-            # 自動劃分 Val 集並生成 config.yaml
-            self.log_signal.emit("⚖ 劃分 Train / Val 資料集...")
-            import random
-            all_train_imgs = [f for f in os.listdir(train_images) if f.lower().endswith(('.jpg', '.png', '.jpeg', '.bmp', '.webp', '.tif', '.tiff'))]
+            # 自動劃分 Val 集
+            all_train_imgs = [f for f in os.listdir(train_images) if f.lower().endswith(img_exts)]
+            random.seed(42)
             random.shuffle(all_train_imgs)
             val_num = int(len(all_train_imgs) * self.split_ratio)
             val_select = all_train_imgs[:val_num]
@@ -286,7 +296,6 @@ class ConvertWorker(QThread):
                 if os.path.exists(src_lbl):
                     shutil.move(src_lbl, os.path.join(val_labels, lbl_f))
 
-            # 生成 config.yaml
             config_data = {
                 'path': dataset_root.replace("\\", "/"),
                 'train': 'train/images',

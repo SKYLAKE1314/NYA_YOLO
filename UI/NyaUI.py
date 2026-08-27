@@ -371,9 +371,19 @@ class NyaUI(QMainWindow):
         self.page_dataprep.btn_start_convert.setEnabled(True)
         if success:
             self.page_train_config.data_input.setText(result_msg)
-            self.append_log(f"✨ [NYA 轉檔] 轉換完成！已自動將 config.yaml 帶入訓練配置: {result_msg}")
+            prep_task = self.page_dataprep.task_type_combo.currentText()
+            if "二分類" in prep_task or "多分類" in prep_task or "classify" in prep_task.lower():
+                # 自動將訓練設定頁切換至分類任務
+                for i in range(self.page_train_config.task_combo.count()):
+                    if "Classify" in self.page_train_config.task_combo.itemText(i):
+                        self.page_train_config.task_combo.setCurrentIndex(i)
+                        break
+
+            self.append_log(f"✨ [資料集整理完成] 已自動帶入訓練配置: {result_msg}")
+            # 自動觸發 DataCheck 驗證預覽
+            self.start_datacheck()
         else:
-            self.append_log(f"❌ [NYA 轉檔失敗] {result_msg}")
+            self.append_log(f"❌ [資料集整理失敗] {result_msg}")
 
     def start_datacheck(self):
         target_path = self.page_dataprep.dataset_input.text().strip()

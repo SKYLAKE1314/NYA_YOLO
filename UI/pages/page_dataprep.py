@@ -88,46 +88,99 @@ class DataPrepPageWidget(QWidget):
         form = QFormLayout()
         form.setVerticalSpacing(8)
         self.task_type_combo = QComboBox()
-        self.task_type_combo.addItems(["detect (目標檢測)", "segment (實例分割)", "classify (圖像分類 / 二分類)"])
+        self.task_type_combo.addItems([
+            "⚖️ 二分類 (OK / NG 良品與不良品直接建構)",
+            "🏷️ 多分類 (Multi-Class 圖像分類)",
+            "🎯 目標檢測 (Detect - XML/JSON 轉檔)",
+            "✂️ 實例分割 (Segment - JSON 多邊形轉檔)"
+        ])
+        self.task_type_combo.currentIndexChanged.connect(self._on_prep_task_changed)
         form.addRow("任務類型:", self.task_type_combo)
+        left_layout.addLayout(form)
+
+        # ── 群組 A: 二分類專用欄位 (選擇 OK / NG 資料夾) ──
+        self.binary_cls_group = QWidget()
+        bin_form = QFormLayout(self.binary_cls_group)
+        bin_form.setContentsMargins(0, 0, 0, 0)
+        bin_form.setVerticalSpacing(8)
+
+        self.ok_input = QLineEdit()
+        btn_ok = QPushButton("選擇 OK 良品資料夾 🟢")
+        btn_ok.clicked.connect(lambda: self._select_folder(self.ok_input))
+        bin_form.addRow("良品 (OK) 影像:", self.ok_input)
+        bin_form.addRow("", btn_ok)
+
+        self.ng_input = QLineEdit()
+        btn_ng = QPushButton("選擇 NG 不良品資料夾 🔴")
+        btn_ng.clicked.connect(lambda: self._select_folder(self.ng_input))
+        bin_form.addRow("不良品 (NG) 影像:", self.ng_input)
+        bin_form.addRow("", btn_ng)
+        left_layout.addWidget(self.binary_cls_group)
+
+        # ── 群組 B: 多分類專用欄位 (選擇分類總資料夾) ──
+        self.multi_cls_group = QWidget()
+        multi_form = QFormLayout(self.multi_cls_group)
+        multi_form.setContentsMargins(0, 0, 0, 0)
+        multi_form.setVerticalSpacing(8)
+
+        self.multi_cls_input = QLineEdit()
+        btn_multi = QPushButton("選擇分類資料夾 (內含各類別子目錄)")
+        btn_multi.clicked.connect(lambda: self._select_folder(self.multi_cls_input))
+        multi_form.addRow("分類總目錄:", self.multi_cls_input)
+        multi_form.addRow("", btn_multi)
+        left_layout.addWidget(self.multi_cls_group)
+
+        # ── 群組 C: 檢測與分割專用欄位 (標註檔與影像) ──
+        self.detect_seg_group = QWidget()
+        det_form = QFormLayout(self.detect_seg_group)
+        det_form.setContentsMargins(0, 0, 0, 0)
+        det_form.setVerticalSpacing(8)
 
         self.anno_input = QLineEdit()
         btn_anno = QPushButton("選擇標註資料夾")
         btn_anno.clicked.connect(lambda: self._select_folder(self.anno_input))
-        form.addRow("標註資料夾:", self.anno_input)
-        form.addRow("", btn_anno)
+        det_form.addRow("標註資料夾:", self.anno_input)
+        det_form.addRow("", btn_anno)
 
         self.image_input = QLineEdit()
         btn_img = QPushButton("選擇影像資料夾")
         btn_img.clicked.connect(lambda: self._select_folder(self.image_input))
-        form.addRow("影像資料夾:", self.image_input)
-        form.addRow("", btn_img)
+        det_form.addRow("影像資料夾:", self.image_input)
+        det_form.addRow("", btn_img)
+
+        self.auto_class_cb = QCheckBox("Auto Classes (自動提取標註檔類別名單)")
+        self.auto_class_cb.setChecked(True)
+        det_form.addRow(self.auto_class_cb)
+
+        self.class_input = QLineEdit("NG")
+        det_form.addRow("手動指定類別 (逗號分隔):", self.class_input)
+        left_layout.addWidget(self.detect_seg_group)
+
+        # ── 通用欄位: Dataset 根目錄與 Val 比例 ──
+        common_form = QFormLayout()
+        common_form.setVerticalSpacing(8)
 
         self.dataset_input = QLineEdit(self.project_mgr.dataset_dir)
         btn_dataset = QPushButton("選擇 Dataset 根目錄")
         btn_dataset.clicked.connect(lambda: self._select_folder(self.dataset_input))
-        form.addRow("Dataset 根目錄:", self.dataset_input)
-        form.addRow("", btn_dataset)
-
-        self.auto_class_cb = QCheckBox("Auto Classes (自動提取標註檔類別名單)")
-        self.auto_class_cb.setChecked(True)
-        form.addRow(self.auto_class_cb)
-
-        self.class_input = QLineEdit("NG")
-        form.addRow("手動指定類別 (逗號分隔):", self.class_input)
+        common_form.addRow("Dataset 根目錄:", self.dataset_input)
+        common_form.addRow("", btn_dataset)
 
         self.split_ratio_spin = QDoubleSpinBox()
         self.split_ratio_spin.setRange(0.05, 0.5)
         self.split_ratio_spin.setValue(0.2)
-        form.addRow("Val 驗證集比例:", self.split_ratio_spin)
+        common_form.addRow("Val 驗證集比例:", self.split_ratio_spin)
 
-        left_layout.addLayout(form)
+        left_layout.addLayout(common_form)
         left_layout.addSpacing(10)
 
-        self.btn_start_convert = QPushButton("開始標註轉換與生成 Config.yaml")
+        self.btn_start_convert = QPushButton("🚀 一鍵建立二分類資料集並生成 Config")
         self.btn_start_convert.setObjectName("GoogleAmberButton")
         self.btn_start_convert.clicked.connect(self._on_convert_click)
         left_layout.addWidget(self.btn_start_convert)
+
+        # 初始執行一次切換以設定可見度
+        self._on_prep_task_changed(0)
 
         btn_datacheck = QPushButton("執行 DataCheck 數據集驗證")
         btn_datacheck.setObjectName("GoogleSecondaryButton")
@@ -677,24 +730,53 @@ class DataPrepPageWidget(QWidget):
         if folder:
             line_edit.setText(folder)
 
-    def _on_convert_click(self):
-        task_text = self.task_type_combo.currentText().lower()
-        if "classify" in task_text or "分類" in task_text:
-            task_type = "classify"
-        elif "segment" in task_text:
-            task_type = "segment"
-        else:
-            task_type = "detect"
+    def _on_prep_task_changed(self, idx):
+        if not hasattr(self, 'binary_cls_group') or not hasattr(self, 'multi_cls_group') or not hasattr(self, 'detect_seg_group'):
+            return
+        txt = self.task_type_combo.currentText()
+        is_binary = "二分類" in txt or "binary" in txt
+        is_multi = "多分類" in txt or "multi" in txt
+        is_det_seg = not is_binary and not is_multi
+        
+        self.binary_cls_group.setVisible(is_binary)
+        self.multi_cls_group.setVisible(is_multi)
+        self.detect_seg_group.setVisible(is_det_seg)
+        
+        if hasattr(self, 'btn_start_convert'):
+            if is_binary:
+                self.btn_start_convert.setText("🚀 一鍵建立二分類資料集並生成 Config")
+            elif is_multi:
+                self.btn_start_convert.setText("🚀 一鍵建立多分類資料集並生成 Config")
+            else:
+                self.btn_start_convert.setText("開始標註轉換與生成 Config.yaml")
 
-        data = {
-            "task_type": task_type,
-            "anno_dir": self.anno_input.text().strip(),
-            "image_dir": self.image_input.text().strip(),
-            "output_root": self.dataset_input.text().strip(),
-            "auto_class": self.auto_class_cb.isChecked(),
-            "class_str": self.class_input.text().strip(),
-            "val_ratio": self.split_ratio_spin.value()
-        }
+    def _on_convert_click(self):
+        txt = self.task_type_combo.currentText()
+        if "二分類" in txt or "binary" in txt:
+            data = {
+                "task_type": "binary_cls",
+                "ok_dir": self.ok_input.text().strip(),
+                "ng_dir": self.ng_input.text().strip(),
+                "output_root": self.dataset_input.text().strip(),
+                "val_ratio": self.split_ratio_spin.value()
+            }
+        elif "多分類" in txt or "multi" in txt:
+            data = {
+                "task_type": "multi_cls",
+                "image_dir": self.multi_cls_input.text().strip(),
+                "output_root": self.dataset_input.text().strip(),
+                "val_ratio": self.split_ratio_spin.value()
+            }
+        else:
+            data = {
+                "task_type": "segment" if "segment" in txt or "實例分割" in txt else "detect",
+                "anno_dir": self.anno_input.text().strip(),
+                "image_dir": self.image_input.text().strip(),
+                "output_root": self.dataset_input.text().strip(),
+                "auto_class": self.auto_class_cb.isChecked(),
+                "class_str": self.class_input.text().strip(),
+                "val_ratio": self.split_ratio_spin.value()
+            }
         self.start_convert_requested.emit(data)
 
     def append_log(self, text):
