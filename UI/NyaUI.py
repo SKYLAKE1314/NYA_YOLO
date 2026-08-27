@@ -416,16 +416,34 @@ class NyaUI(QMainWindow):
             lbl.setFixedSize(160, 160)
             lbl.setAlignment(Qt.AlignCenter)
             lbl.setStyleSheet("border: 1px solid rgba(128,128,128,0.3); border-radius: 8px; background: rgba(0,0,0,0.25);")
-            pixmap = QPixmap(item["img_path"])
-            if not pixmap.isNull():
-                lbl.setPixmap(pixmap.scaled(156, 156, Qt.KeepAspectRatio, Qt.SmoothTransformation))
-            b_cnt = item.get("box_count", "")
-            tip = f"{item.get('name', '')} ({b_cnt} 個標註)" if b_cnt != "" else item.get('name', '')
+
+            img_p = ""
+            name_str = ""
+            box_count_str = ""
+
+            if isinstance(item, dict):
+                img_p = item.get("img_path", "")
+                name_str = item.get("name", os.path.basename(img_p))
+                box_count_str = str(item.get("box_count", ""))
+            elif isinstance(item, (tuple, list)):
+                # (orig_path, out_path)
+                img_p = item[1] if len(item) > 1 and os.path.exists(item[1]) else item[0]
+                name_str = os.path.basename(item[0])
+            elif isinstance(item, str):
+                img_p = item
+                name_str = os.path.basename(item)
+
+            if img_p and os.path.exists(img_p):
+                pixmap = QPixmap(img_p)
+                if not pixmap.isNull():
+                    lbl.setPixmap(pixmap.scaled(156, 156, Qt.KeepAspectRatio, Qt.SmoothTransformation))
+
+            tip = f"{name_str} ({box_count_str} 個標註)" if box_count_str else name_str
             lbl.setToolTip(tip)
             grid_layout.addWidget(lbl, i // 3, i % 3)
 
         if sample_items:
-            self.append_log(f"✨ [DataCheck] 驗證網格已更新，顯示 {min(12, len(sample_items))} 張畫框預覽圖！")
+            self.append_log(f"✨ [DataCheck] 驗證網格已更新，顯示 {min(12, len(sample_items))} 張畫框/分類預覽圖！")
 
     # --- AI 自動標注 ---
     def start_auto_annotate(self, data):

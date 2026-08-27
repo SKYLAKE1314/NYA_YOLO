@@ -14,6 +14,10 @@ from NyaUI import NyaUI, ICON_PATH
 
 def main():
     app = QApplication(sys.argv)
+    font = app.font()
+    if font.pointSize() <= 0:
+        font.setPointSize(9)
+        app.setFont(font)
     if os.path.exists(ICON_PATH):
         app.setWindowIcon(QIcon(ICON_PATH))
     window = NyaUI()

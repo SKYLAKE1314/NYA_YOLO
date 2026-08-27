@@ -89,10 +89,10 @@ class DataPrepPageWidget(QWidget):
         form.setVerticalSpacing(8)
         self.task_type_combo = QComboBox()
         self.task_type_combo.addItems([
-            "⚖️ 二分類 (OK / NG 良品與不良品直接建構)",
-            "🏷️ 多分類 (Multi-Class 圖像分類)",
-            "🎯 目標檢測 (Detect - XML/JSON 轉檔)",
-            "✂️ 實例分割 (Segment - JSON 多邊形轉檔)"
+            " 二分類",
+            " 多分類",
+            " 偵測",
+            " 分割"
         ])
         self.task_type_combo.currentIndexChanged.connect(self._on_prep_task_changed)
         form.addRow("任務類型:", self.task_type_combo)
@@ -255,18 +255,18 @@ class DataPrepPageWidget(QWidget):
         ctrl_layout.addWidget(c_title)
 
         # NYA 工作流 3 步驟快捷按鈕列
-        btn_step1_img = QPushButton("📁 步驟 1: 匯入圖像資料夾")
+        btn_step1_img = QPushButton("步驟 1: 匯入圖像資料夾")
         btn_step1_img.clicked.connect(self._import_images_dir)
 
-        btn_step1_lbl = QPushButton("🏷️ 匯入已有標註集 (可選)")
+        btn_step1_lbl = QPushButton("匯入已有標註集 (可選)")
         btn_step1_lbl.setObjectName("GoogleSecondaryButton")
         btn_step1_lbl.clicked.connect(self._import_labels_dir)
 
-        btn_step2_split = QPushButton("⚡ 步驟 2: 一鍵拆分並生成 config.yaml")
+        btn_step2_split = QPushButton("步驟 2: 一鍵拆分並生成 config.yaml")
         btn_step2_split.setObjectName("GoogleSecondaryButton")
         btn_step2_split.clicked.connect(self._halcon_split_dataset)
 
-        btn_step3_train = QPushButton("🚀 步驟 3: 立即開啟模型訓練 ➔")
+        btn_step3_train = QPushButton("步驟 3: 立即開啟模型訓練 ➔")
         btn_step3_train.setObjectName("GoogleAmberButton")
         btn_step3_train.clicked.connect(self._halcon_jump_to_train)
 
@@ -744,9 +744,9 @@ class DataPrepPageWidget(QWidget):
         
         if hasattr(self, 'btn_start_convert'):
             if is_binary:
-                self.btn_start_convert.setText("🚀 一鍵建立二分類資料集並生成 Config")
+                self.btn_start_convert.setText("一鍵建立二分類資料集並生成 Config")
             elif is_multi:
-                self.btn_start_convert.setText("🚀 一鍵建立多分類資料集並生成 Config")
+                self.btn_start_convert.setText("一鍵建立多分類資料集並生成 Config")
             else:
                 self.btn_start_convert.setText("開始標註轉換與生成 Config.yaml")
 
@@ -907,7 +907,7 @@ class DataPrepPageWidget(QWidget):
             self.auto_summary_lbl.setText("\n".join(stat_lines))
             QMessageBox.information(
                 self, "自動標注完成",
-                f"🎉 AI 自動標注任務圓滿完成！\n共處理: {processed} 張圖像\n生成標註: {total_boxes} 個目標\n專案位置: {summary_dict.get('project_dir', '')}"
+                f"🎉 AI 自動標注任務完成！\n共處理: {processed} 張圖像\n生成標註: {total_boxes} 個目標\n專案位置: {summary_dict.get('project_dir', '')}"
             )
         else:
             QMessageBox.warning(self, "標注提示", f"自動標注中斷或失敗: {message}")
