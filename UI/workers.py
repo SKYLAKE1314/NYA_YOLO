@@ -89,13 +89,13 @@ class ConvertWorker(QThread):
                     return
 
                 classes = ["OK", "NG"]
-                # 建立 train/OK, train/NG, val/OK, val/NG
+                # 徹底重置並建立 train 與 val
                 for sub in ["train", "val"]:
+                    sub_p = os.path.join(dataset_root, sub)
+                    if os.path.exists(sub_p):
+                        shutil.rmtree(sub_p, ignore_errors=True)
                     for c in classes:
-                        d = os.path.join(dataset_root, sub, c)
-                        if os.path.exists(d):
-                            shutil.rmtree(d)
-                        os.makedirs(d, exist_ok=True)
+                        os.makedirs(os.path.join(sub_p, c), exist_ok=True)
 
                 # 清理快取
                 for cf in os.listdir(dataset_root):
@@ -157,11 +157,12 @@ class ConvertWorker(QThread):
 
                 classes = subdirs if subdirs else (self.manual_classes if self.manual_classes else ["class_0", "class_1"])
 
-                for cname in classes:
-                    for sub in ["train", "val"]:
-                        d = os.path.join(dataset_root, sub, cname)
-                        if os.path.exists(d): shutil.rmtree(d)
-                        os.makedirs(d, exist_ok=True)
+                for sub in ["train", "val"]:
+                    sub_p = os.path.join(dataset_root, sub)
+                    if os.path.exists(sub_p):
+                        shutil.rmtree(sub_p, ignore_errors=True)
+                    for cname in classes:
+                        os.makedirs(os.path.join(sub_p, cname), exist_ok=True)
 
                 classified_images = {c: [] for c in classes}
 
@@ -237,14 +238,18 @@ class ConvertWorker(QThread):
                 self.finished_signal.emit(False, "類別名單為空，請檢查標註檔案或手動設定類別！")
                 return
 
-            # 建立並清理目錄結構 train/images, train/labels, val/images, val/labels
+            # 徹底重置並建立目錄結構 train/images, train/labels, val/images, val/labels
+            for sub in ["train", "val"]:
+                sub_p = os.path.join(dataset_root, sub)
+                if os.path.exists(sub_p):
+                    shutil.rmtree(sub_p, ignore_errors=True)
+
             train_images = os.path.join(dataset_root, "train", "images")
             train_labels = os.path.join(dataset_root, "train", "labels")
             val_images = os.path.join(dataset_root, "val", "images")
             val_labels = os.path.join(dataset_root, "val", "labels")
 
             for p in [train_images, train_labels, val_images, val_labels]:
-                if os.path.exists(p): shutil.rmtree(p)
                 os.makedirs(p, exist_ok=True)
 
             classes_txt_path = os.path.join(dataset_root, "classes.txt")
