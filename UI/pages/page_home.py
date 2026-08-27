@@ -1,8 +1,3 @@
-"""
-HomePageWidget — 首頁儀表板與搜尋引擎模組
-提供中央快速啟動標題、智慧關鍵字搜尋列、Quick Chips 與工作流建議卡片
-"""
-
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton,
     QFrame, QGridLayout, QScrollArea, QCompleter, QListView
@@ -47,11 +42,11 @@ class HomePageWidget(QWidget):
         """)
         avatar_frame.setText("✨")
 
-        user_title = QLabel("YOLO Studio 智慧視覺訓練平台")
+        user_title = QLabel("NYA AI Studio 智慧深度學習視覺平台")
         user_title.setStyleSheet("font-size: 20px; font-weight: bold; margin-top: 4px;")
         user_title.setAlignment(Qt.AlignCenter)
 
-        user_subtitle = QLabel("yolo12 & yolo26 相容 • 檢測 / 分割 / 分類 / 實時追蹤全功能")
+        user_subtitle = QLabel("YOLO / ResNet 深度整合 • 檢測 / 分割 / 分類 / 實時追蹤全功能")
         user_subtitle.setStyleSheet("font-size: 12px; opacity: 0.85;")
         user_subtitle.setAlignment(Qt.AlignCenter)
 

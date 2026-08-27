@@ -88,7 +88,7 @@ class DataPrepPageWidget(QWidget):
         form = QFormLayout()
         form.setVerticalSpacing(8)
         self.task_type_combo = QComboBox()
-        self.task_type_combo.addItems(["detect (目標檢測)", "segment (實例分割)"])
+        self.task_type_combo.addItems(["detect (目標檢測)", "segment (實例分割)", "classify (圖像分類 / 二分類)"])
         form.addRow("任務類型:", self.task_type_combo)
 
         self.anno_input = QLineEdit()
@@ -678,8 +678,16 @@ class DataPrepPageWidget(QWidget):
             line_edit.setText(folder)
 
     def _on_convert_click(self):
+        task_text = self.task_type_combo.currentText().lower()
+        if "classify" in task_text or "分類" in task_text:
+            task_type = "classify"
+        elif "segment" in task_text:
+            task_type = "segment"
+        else:
+            task_type = "detect"
+
         data = {
-            "task_type": "segment" if "segment" in self.task_type_combo.currentText() else "detect",
+            "task_type": task_type,
             "anno_dir": self.anno_input.text().strip(),
             "image_dir": self.image_input.text().strip(),
             "output_root": self.dataset_input.text().strip(),

@@ -99,24 +99,31 @@ class HalconProjectManager:
 
         return self.raw_images_dir, self.labels_dir
 
-    def split_and_build_dataset(self, val_ratio=0.2, class_names=None, log_func=print):
-        """一鍵拆分 80% Train / 20% Val 並徹底清理舊檔案與生成 YOLO config.yaml"""
+    def split_and_build_dataset(self, val_ratio=0.2, class_names=None, task_type="detect", log_func=print):
+        """一鍵拆分 Train / Val 並徹底清理舊檔案與生成 YOLO / ResNet config.yaml"""
         self._ensure_dirs()
 
-        for d in [self.train_images_dir, self.train_labels_dir, self.val_images_dir, self.val_labels_dir]:
-            if os.path.exists(d):
-                shutil.rmtree(d)
-            os.makedirs(d, exist_ok=True)
+        if not class_names:
+            classes_txt = os.path.join(self.labels_dir, "classes.txt")
+            if os.path.exists(classes_txt):
+                with open(classes_txt, "r", encoding="utf-8") as f:
+                    class_names = [line.strip() for line in f if line.strip()]
 
-        # 清理 dataset 根目錄及子目錄下的舊快取檔案
+        if not class_names:
+            class_names = ["OK", "NG"] if task_type == "classify" else ["object"]
+
+        # 清理 dataset 根目錄及子目錄下的所有舊檔案與快取
         for d in [self.dataset_dir, self.train_images_dir, self.train_labels_dir, self.val_images_dir, self.val_labels_dir]:
             if os.path.exists(d):
-                for cf in os.listdir(d):
-                    if cf.endswith(('.cache', '.cache.npy')):
-                        try:
-                            os.remove(os.path.join(d, cf))
-                        except Exception:
-                            pass
+                shutil.rmtree(d)
+                os.makedirs(d, exist_ok=True)
+
+        if os.path.exists(self.dataset_dir):
+            for cf in os.listdir(self.dataset_dir):
+                fp = os.path.join(self.dataset_dir, cf)
+                if os.path.isfile(fp):
+                    try: os.remove(fp)
+                    except Exception: pass
 
         exts = ('.jpg', '.jpeg', '.png', '.bmp', '.webp')
         all_images = [f for f in os.listdir(self.raw_images_dir) if f.lower().endswith(exts)]
@@ -132,38 +139,57 @@ class HalconProjectManager:
         val_set = set(images_shuffled[:num_val])
         train_set = set(images_shuffled[num_val:])
 
-        for img_name in images_shuffled:
-            base_name = os.path.splitext(img_name)[0]
-            src_img = os.path.join(self.raw_images_dir, img_name)
-            src_label = os.path.join(self.labels_dir, f"{base_name}.txt")
+        # ── 分類模式：輸出至 train/<類別>/ 與 val/<類別>/ ────────
+        if task_type == "classify":
+            for cname in class_names:
+                os.makedirs(os.path.join(self.dataset_dir, "train", cname), exist_ok=True)
+                os.makedirs(os.path.join(self.dataset_dir, "val", cname), exist_ok=True)
 
-            if img_name in val_set:
-                dst_img = os.path.join(self.val_images_dir, img_name)
-                dst_label = os.path.join(self.val_labels_dir, f"{base_name}.txt")
-            else:
-                dst_img = os.path.join(self.train_images_dir, img_name)
-                dst_label = os.path.join(self.train_labels_dir, f"{base_name}.txt")
+            for img_name in images_shuffled:
+                base_name = os.path.splitext(img_name)[0]
+                src_img = os.path.join(self.raw_images_dir, img_name)
+                src_label = os.path.join(self.labels_dir, f"{base_name}.txt")
 
-            shutil.copy2(src_img, dst_img)
-            if os.path.exists(src_label):
-                shutil.copy2(src_label, dst_label)
+                assigned_c = "OK" if "OK" in class_names else class_names[0]
+                if os.path.exists(src_label) and os.path.getsize(src_label) > 0:
+                    assigned_c = "NG" if "NG" in class_names else class_names[-1]
 
-        if not class_names:
-            classes_txt = os.path.join(self.labels_dir, "classes.txt")
-            if os.path.exists(classes_txt):
-                with open(classes_txt, "r", encoding="utf-8") as f:
-                    class_names = [line.strip() for line in f if line.strip()]
+                target_subset = "val" if img_name in val_set else "train"
+                dst_img = os.path.join(self.dataset_dir, target_subset, assigned_c, img_name)
+                shutil.copy2(src_img, dst_img)
 
-        if not class_names:
-            class_names = ["object"]
+            config = {
+                'path': self.dataset_dir.replace("\\", "/"),
+                'train': 'train',
+                'val': 'val',
+                'nc': len(class_names),
+                'names': class_names
+            }
+        else:
+            # ── 檢測/分割模式：輸出至 train/images, train/labels ────
+            for img_name in images_shuffled:
+                base_name = os.path.splitext(img_name)[0]
+                src_img = os.path.join(self.raw_images_dir, img_name)
+                src_label = os.path.join(self.labels_dir, f"{base_name}.txt")
 
-        config = {
-            'path': self.dataset_dir.replace("\\", "/"),
-            'train': 'train/images',
-            'val': 'val/images',
-            'nc': len(class_names),
-            'names': class_names
-        }
+                if img_name in val_set:
+                    dst_img = os.path.join(self.val_images_dir, img_name)
+                    dst_label = os.path.join(self.val_labels_dir, f"{base_name}.txt")
+                else:
+                    dst_img = os.path.join(self.train_images_dir, img_name)
+                    dst_label = os.path.join(self.train_labels_dir, f"{base_name}.txt")
+
+                shutil.copy2(src_img, dst_img)
+                if os.path.exists(src_label):
+                    shutil.copy2(src_label, dst_label)
+
+            config = {
+                'path': self.dataset_dir.replace("\\", "/"),
+                'train': 'train/images',
+                'val': 'val/images',
+                'nc': len(class_names),
+                'names': class_names
+            }
 
         yaml_path = os.path.join(self.dataset_dir, "config.yaml")
         if os.path.exists(yaml_path):

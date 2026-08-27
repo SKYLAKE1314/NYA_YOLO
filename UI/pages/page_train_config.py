@@ -91,16 +91,22 @@ class TrainConfigPageWidget(QWidget):
                 "yolo12-seg.yaml",
             ],
             "🏷 Classify (圖像二分類 / 多分類)": [
-                # ResNet 系列 (二分類 / 缺陷分類推薦)
-                "yolo11-cls-resnet18.yaml",
-                "yolov8-cls-resnet50.yaml",
-                "yolov8-cls-resnet101.yaml",
+                # ResNet 系列 (二分類 / 缺陷分類首選)
+                "ResNet-18 (yolo11-cls-resnet18.yaml)",
+                "ResNet-50 (yolov8-cls-resnet50.yaml)",
+                "ResNet-101 (yolov8-cls-resnet101.yaml)",
                 # YOLO11-cls 系列
-                "yolo11n-cls.pt", "yolo11s-cls.pt", "yolo11m-cls.pt", "yolo11l-cls.pt", "yolo11x-cls.pt",
+                "YOLO11n-cls (yolo11n-cls.pt)",
+                "YOLO11s-cls (yolo11s-cls.pt)",
+                "YOLO11m-cls (yolo11m-cls.pt)",
+                "YOLO11l-cls (yolo11l-cls.pt)",
                 # YOLOv8-cls 系列
-                "yolov8n-cls.pt", "yolov8s-cls.pt", "yolov8m-cls.pt", "yolov8l-cls.pt", "yolov8x-cls.pt",
+                "YOLOv8n-cls (yolov8n-cls.pt)",
+                "YOLOv8s-cls (yolov8s-cls.pt)",
+                "YOLOv8m-cls (yolov8m-cls.pt)",
                 # YOLO12-cls 系列
-                "yolo12n-cls.pt", "yolo12s-cls.pt", "yolo12m-cls.pt", "yolo12-cls.yaml",
+                "YOLO12n-cls (yolo12n-cls.pt)",
+                "YOLO12s-cls (yolo12s-cls.pt)",
             ],
             "🌐 World Detection (開放詞彙)": [
                 "yolov8s-world.pt", "yolov8m-world.pt", "yolov8l-world.pt",
@@ -329,7 +335,14 @@ class TrainConfigPageWidget(QWidget):
     def get_selected_model_path(self):
         idx = self.model_tabs_widget.currentIndex()
         if idx == 0:
-            return self.model_dl_combo.currentText().strip()
+            raw = self.model_dl_combo.currentText().strip()
+            # 支援如 "ResNet-18 (yolo11-cls-resnet18.yaml)" 提取括號內真實權重/設定檔名稱
+            if "(" in raw and ")" in raw:
+                import re
+                m = re.search(r'\(([^)]+)\)', raw)
+                if m and (m.group(1).endswith(('.yaml', '.pt', '.onnx', '.engine'))):
+                    return m.group(1).strip()
+            return raw
         elif idx == 1:
             sel = self.local_model_combo.currentText().strip()
             return sel if sel else self.local_scan_dir.text().strip()

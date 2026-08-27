@@ -1,5 +1,5 @@
 """
-Nya YOLO Studio — Nuitka 打包腳本 v7 (完美解法版)
+NYA AI Studio — Nuitka 打包腳本 v7 (完美解法版)
 策略：
   1. Nuitka 正常打包所有依賴套件（不使用會導致依賴斷裂的 nofollow）
   2. 針對會導致 MSVC C1002 堆積溢出的「超巨型子模組」（動輒數十萬行 C 代碼），
@@ -36,7 +36,7 @@ def get_module_file(module_name):
 def main():
     root_dir = os.path.dirname(os.path.abspath(__file__))
     ui_dir = os.path.join(root_dir, "UI")
-    main_script = os.path.join(ui_dir, "NyaYOLOStudio.py")
+    main_script = os.path.join(ui_dir, "NyaAIStudio.py") if os.path.exists(os.path.join(ui_dir, "NyaAIStudio.py")) else os.path.join(ui_dir, "NyaYOLOStudio.py")
     icon_path = os.path.join(ui_dir, "icon.ico")
     wallpaper_path = os.path.join(ui_dir, "file_0000000031e8720681bd49398eace5bf.png")
     config_creator = os.path.join(root_dir, "ConfigCreator.py")

@@ -30,7 +30,7 @@ class GoogleHeaderWidget(QWidget):
         logo_box.setSpacing(6)
         logo_title = QLabel("Nya")
         logo_title.setObjectName("GoogleLogoText")
-        logo_sub = QLabel("YOLO Studio")
+        logo_sub = QLabel("AI Studio")
         logo_sub.setObjectName("GoogleLogoSubtext")
         logo_box.addWidget(logo_title)
         logo_box.addWidget(logo_sub)

@@ -1,5 +1,5 @@
 """
-NyaUI — Nya YOLO Studio 主視窗與模組化調度器
+NyaUI — NYA AI Studio 主視窗與模組化調度器
 採用高規解耦架構，調度 GoogleHeaderWidget, GoogleSidebarWidget 與獨立 Function Pages
 """
 
@@ -62,7 +62,7 @@ def detect_system_dark_mode():
 class NyaUI(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Nya YOLO Studio")
+        self.setWindowTitle("NYA AI Studio")
         self.resize(1340, 850)
 
         _wp_path = os.path.join(CURRENT_DIR, "file_0000000031e8720681bd49398eace5bf.png")

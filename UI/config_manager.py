@@ -1,6 +1,6 @@
 """
 ConfigCacheManager — 全局 UI 設定快取管理器
-負責儲存與自動恢復使用者在 Nya YOLO Studio 的各項輸入與超參數配置
+負責儲存與自動恢復使用者在 NYA AI Studio 的各項輸入與超參數配置
 """
 
 import os
