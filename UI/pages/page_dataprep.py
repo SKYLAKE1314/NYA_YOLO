@@ -105,15 +105,15 @@ class DataPrepPageWidget(QWidget):
         bin_form.setVerticalSpacing(8)
 
         self.ok_input = QLineEdit()
-        btn_ok = QPushButton("選擇 OK 良品資料夾 🟢")
+        btn_ok = QPushButton("選擇 OK 檔案夾 ")
         btn_ok.clicked.connect(lambda: self._select_folder(self.ok_input))
         bin_form.addRow("良品 (OK) 影像:", self.ok_input)
         bin_form.addRow("", btn_ok)
 
         self.ng_input = QLineEdit()
-        btn_ng = QPushButton("選擇 NG 不良品資料夾 🔴")
+        btn_ng = QPushButton("選擇 NG 檔案夾 ")
         btn_ng.clicked.connect(lambda: self._select_folder(self.ng_input))
-        bin_form.addRow("不良品 (NG) 影像:", self.ng_input)
+        bin_form.addRow("NG 影像:", self.ng_input)
         bin_form.addRow("", btn_ng)
         left_layout.addWidget(self.binary_cls_group)
 

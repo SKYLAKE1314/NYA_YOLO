@@ -140,8 +140,8 @@ class ConvertWorker(QThread):
                 self.log_signal.emit(f"✨ 二分類 (OK / NG) 資料集整理完成！")
                 self.log_signal.emit(f"  🟢 良品 OK: 訓練集 {ok_tr} 張, 驗證集 {ok_val} 張")
                 self.log_signal.emit(f"  🔴 不良品 NG: 訓練集 {ng_tr} 張, 驗證集 {ng_val} 張")
-                self.log_signal.emit(f"📄 已生成二分類配置: {yaml_path}")
-                self.finished_signal.emit(True, yaml_path)
+                self.log_signal.emit(f"📁 資料集目錄: {dataset_root}")
+                self.finished_signal.emit(True, dataset_root)
                 return
 
             # ── 任務分支 2: 多分類 / 標準分類 (Multi-Class) ───────────
@@ -213,8 +213,8 @@ class ConvertWorker(QThread):
                 stat_str = ", ".join([f"{k}: {len(v)} 張" for k, v in classified_images.items()])
                 self.log_signal.emit(f"✨ 多分類資料集轉換完成！總 Train: {total_train} 張, Val: {total_val} 張")
                 self.log_signal.emit(f"📊 類別分佈: {stat_str}")
-                self.log_signal.emit(f"📄 已生成分類配置: {yaml_path}")
-                self.finished_signal.emit(True, yaml_path)
+                self.log_signal.emit(f"📁 資料集目錄: {dataset_root}")
+                self.finished_signal.emit(True, dataset_root)
                 return
 
             # ── 任務分支 3: 目標檢測 (Detect) 與 實例分割 (Segment) ──
@@ -651,6 +651,21 @@ class TrainWorker(QThread):
 
             self.log_signal.emit(f"載入模型結構/權重: {model_path}")
             model = YOLO(model_path)
+
+            # 分類任務相容性處理：Ultralytics 要求 classification dataset 必須為目錄路徑 (不可為 config.yaml 檔案)
+            if getattr(model, "task", "") == "classify" or "-cls" in str(model_path).lower() or "resnet" in str(model_path).lower():
+                raw_data = self.kwargs.get("data", "")
+                if raw_data and os.path.isfile(raw_data):
+                    dataset_dir = os.path.dirname(raw_data)
+                    try:
+                        with open(raw_data, "r", encoding="utf-8") as yf:
+                            ycfg = yaml.safe_load(yf) or {}
+                        if ycfg.get("path") and os.path.isdir(ycfg.get("path")):
+                            dataset_dir = ycfg.get("path")
+                    except Exception:
+                        pass
+                    self.kwargs["data"] = dataset_dir
+                    self.log_signal.emit(f"🏷 自動將分類資料集路徑調整為目錄格式: {dataset_dir}")
 
             # 自訂 Ultralytics Callback 來捕捉訓練進度與處理暫停/取消
             def check_pause(trainer):
