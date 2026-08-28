@@ -1,4 +1,6 @@
+import os
 import cv2
+import tempfile
 from ultralytics import YOLO
 
 class BinaryClassifier:
@@ -16,10 +18,11 @@ class BinaryClassifier:
         conf = float(probs.top1conf)
         return label, conf, results[0]
 
-    def show(self, result, window_name="Binary Classification"):
-        cv2.imshow(window_name, result.plot())
-        cv2.waitKey(0)
-        cv2.destroyAllWindows()
+    def show(self, result):
+        # 儲存判定標籤圖並使用 Windows 內建相片軟體開啟
+        temp_img_path = os.path.join(tempfile.gettempdir(), "nya_classify_result.jpg")
+        cv2.imwrite(temp_img_path, result.plot())
+        os.startfile(temp_img_path)
 
 
 if __name__ == "__main__":
@@ -32,5 +35,5 @@ if __name__ == "__main__":
 
     print(f"分類判定: [{label}] (信心度: {conf * 100:.2f}%)")
 
-    # 彈窗顯示結果圖像 (按任意鍵關閉)
+    # 調用 Windows 內建相片軟體開啟查看
     classifier.show(res)
