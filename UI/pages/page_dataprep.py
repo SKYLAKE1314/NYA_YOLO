@@ -173,8 +173,8 @@ class DataPrepPageWidget(QWidget):
 
         left_layout.addLayout(common_form)
         left_layout.addSpacing(10)
-
-        self.btn_start_convert = QPushButton("🚀 一鍵建立二分類資料集並生成 Config")
+        
+        self.btn_start_convert = QPushButton("建立二分類資料集與生成 Config")
         self.btn_start_convert.setObjectName("GoogleAmberButton")
         self.btn_start_convert.clicked.connect(self._on_convert_click)
         left_layout.addWidget(self.btn_start_convert)
