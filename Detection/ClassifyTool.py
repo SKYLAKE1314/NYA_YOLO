@@ -3,10 +3,11 @@
 NYA AI Studio - 工業二分類即時監控與 HTTP 主站伺服器 (ClassifyTool)
 功能:
   1. 固定建立並即時監聽《verify》目錄 (及其所有子資料夾)。
-  2. 發現新影像立即執行二分類推論 (OK / NG)。
-  3. 檢測完成後立即刪除該圖片檔案。
-  4. 架設 HTTP 主站伺服器 (192.168.1.4 / 0.0.0.0)，供客戶端查詢或主動推送結果。
-  5. 支援獨立單一類運行與打包為獨立 .exe 執行檔。
+  2. 預設從《weight》目錄讀取二分類模型權重檔 (weight/best.pt)。
+  3. 發現新影像立即執行二分類推論 (OK / NG)。
+  4. 檢測完成後立即刪除該圖片檔案。
+  5. 架設 HTTP 主站伺服器 (192.168.1.4 / 0.0.0.0)，供客戶端查詢或主動推送結果。
+  6. 支援獨立單一類運行與打包為獨立 .exe 執行檔。
 =============================================================================
 """
 
@@ -15,6 +16,7 @@ import sys
 import time
 import json
 import socket
+import shutil
 import threading
 import urllib.request
 import urllib.parse
@@ -36,9 +38,12 @@ else:
 if BASE_DIR not in sys.path:
     sys.path.insert(0, BASE_DIR)
 
-# ── 預設參數配置 ──────────────────────────────────────────
-# 監聽的目錄（固定為 base 目錄下的 verify）
+# ── 預設目錄與參數配置 ────────────────────────────────────
+# 監聽目錄（固定為 base 目錄下的 《verify》）
 VERIFY_DIR = os.path.join(BASE_DIR, "verify")
+
+# 模型權重目錄（固定為 base 目錄下的 《weight》）
+WEIGHT_DIR = os.path.join(BASE_DIR, "weight")
 
 # HTTP 主站伺服器綁定 IP 與連接埠
 SERVER_HOST = "0.0.0.0"       # 綁定 0.0.0.0 同時接受本機、192.168.1.4 及所有區域網網路介面
@@ -46,9 +51,6 @@ SERVER_PORT = 8080            # 主站 HTTP 端口
 
 # 若需要主動向 Client 推送結果，可在此設定 Client 端接收網址 (如 http://192.168.1.4:8000/api/result)
 CLIENT_PUSH_URL = "http://192.168.1.4:8000/result"
-
-# 預設二分類模型路徑
-DEFAULT_MODEL = os.path.join(BASE_DIR, "runs", "classify", "train-5", "weights", "best.pt")
 
 
 # ── 獲取本機所有網路 IP ──────────────────────────────────
@@ -112,6 +114,7 @@ class ServerState:
                 "server_ips": get_local_ip_list(),
                 "port": SERVER_PORT,
                 "verify_dir": VERIFY_DIR,
+                "weight_dir": WEIGHT_DIR,
                 "total_checked": self.total_count,
                 "ok_count": self.ok_count,
                 "ng_count": self.ng_count,
@@ -136,20 +139,48 @@ class BinaryClassifier:
         self.model = YOLO(self.model_path)
 
     def _find_model_path(self):
-        # 1. 檢查預設路徑
-        if os.path.exists(DEFAULT_MODEL):
-            return DEFAULT_MODEL
-        # 2. 檢查 base_dir/weights/
+        os.makedirs(WEIGHT_DIR, exist_ok=True)
+        
+        # 1. 優先檢查 《weight》 目錄下的 best.pt 或其它 .pt 模型
+        weight_best = os.path.join(WEIGHT_DIR, "best.pt")
+        if os.path.exists(weight_best):
+            return weight_best
+
+        for f in os.listdir(WEIGHT_DIR):
+            if f.endswith(".pt"):
+                return os.path.join(WEIGHT_DIR, f)
+
+        # 2. 檢查 runs/classify/ 最新訓練模型並自動同步至 《weight》 目錄
+        runs_classify = os.path.join(BASE_DIR, "runs", "classify")
+        if os.path.exists(runs_classify):
+            candidates = []
+            for root, _, files in os.walk(runs_classify):
+                if "best.pt" in files:
+                    pt_p = os.path.join(root, "best.pt")
+                    candidates.append((os.path.getmtime(pt_p), pt_p))
+            if candidates:
+                candidates.sort(key=lambda x: x[0], reverse=True)
+                latest_best = candidates[0][1]
+                try:
+                    shutil.copy2(latest_best, weight_best)
+                    print(f"💾 [Auto-Sync] 已自動將最新訓練模型複製至: {weight_best}", flush=True)
+                    return weight_best
+                except Exception:
+                    return latest_best
+
+        # 3. 檢查 base_dir/weights/
         weights_dir = os.path.join(BASE_DIR, "weights")
         if os.path.exists(weights_dir):
             for f in os.listdir(weights_dir):
                 if f.endswith(".pt") and ("cls" in f.lower() or "resnet" in f.lower() or "best" in f.lower()):
-                    return os.path.join(weights_dir, f)
-        # 3. 檢查當前目錄下 best.pt
-        local_best = os.path.join(BASE_DIR, "best.pt")
-        if os.path.exists(local_best):
-            return local_best
-        return DEFAULT_MODEL
+                    pt_p = os.path.join(weights_dir, f)
+                    try:
+                        shutil.copy2(pt_p, weight_best)
+                        return weight_best
+                    except Exception:
+                        return pt_p
+
+        return weight_best
 
     def predict_image(self, img_input, imgsz=512):
         kwargs = {"imgsz": imgsz, "verbose": False}
@@ -368,19 +399,25 @@ def watch_verify_directory(verify_dir=VERIFY_DIR):
 def main():
     global GLOBAL_CLASSIFIER
 
-    # 1. 確保 《verify》 目錄存在
+    # 1. 確保 《verify》 與 《weight》 目錄存在
     os.makedirs(VERIFY_DIR, exist_ok=True)
+    os.makedirs(WEIGHT_DIR, exist_ok=True)
 
     # 2. 獲取本機 IP 清單
     ip_list = get_local_ip_list()
     primary_ip = ip_list[0] if ip_list else "192.168.1.4"
 
-    # 3. 印出完整資訊看板
+    # 3. 初始化 AI 模型 (優先自 weight/ 目錄載入)
+    GLOBAL_CLASSIFIER = BinaryClassifier()
+
+    # 4. 印出完整資訊看板
     print("=" * 70, flush=True)
     print("      NYA AI Studio - 工業二分類 (OK / NG) 主站服務系統", flush=True)
     print("=" * 70, flush=True)
     print(f"📁 監控目錄路徑 (Verify Dir):", flush=True)
     print(f"   └── {VERIFY_DIR}", flush=True)
+    print(f"📦 模型權重路徑 (Weight File):", flush=True)
+    print(f"   └── {GLOBAL_CLASSIFIER.model_path}", flush=True)
     print(f"🌐 HTTP 主站服務網址 (Server URLs):", flush=True)
     for ip in ip_list:
         print(f"   └── http://{ip}:{SERVER_PORT}", flush=True)
@@ -392,13 +429,10 @@ def main():
     print(f"   └── 圖片直接推論 : POST http://{primary_ip}:{SERVER_PORT}/predict", flush=True)
     print("=" * 70, flush=True)
 
-    # 4. 啟動 HTTP 主站伺服器 (即刻綁定連接埠)
+    # 5. 啟動 HTTP 主站伺服器 (即刻綁定連接埠)
     httpd = create_http_server(SERVER_HOST, SERVER_PORT)
     http_thread = threading.Thread(target=httpd.serve_forever, daemon=True)
     http_thread.start()
-
-    # 5. 初始化 AI 模型
-    GLOBAL_CLASSIFIER = BinaryClassifier()
 
     print(f"👀 [Directory Watcher] 即時監聽已啟動！", flush=True)
     print(f"   💡 將圖片放入 verify/ 目錄即可自動觸發檢測，檢測後自動刪除並更新 OK/NG 結果！\n", flush=True)

@@ -67,22 +67,25 @@ def main():
     if res.returncode == 0:
         exe_dir = os.path.join(out_dir, "ClassifyTool")
         
-        # 自動在 exe 同層建立 verify 與 weights 資料夾
+        # 自動在 exe 同層建立 《verify》 與 《weight》 資料夾
         os.makedirs(os.path.join(exe_dir, "verify"), exist_ok=True)
-        os.makedirs(os.path.join(exe_dir, "weights"), exist_ok=True)
+        os.makedirs(os.path.join(exe_dir, "weight"), exist_ok=True)
         
-        # 複製最新訓練模型到 weights
-        src_best = os.path.join(root_dir, "runs", "classify", "train-5", "weights", "best.pt")
+        # 複製最新模型到 weight/
+        src_best = os.path.join(root_dir, "weight", "best.pt")
+        if not os.path.exists(src_best):
+            src_best = os.path.join(root_dir, "runs", "classify", "train-5", "weights", "best.pt")
+        
         if os.path.exists(src_best):
-            dst_best = os.path.join(exe_dir, "weights", "best.pt")
+            dst_best = os.path.join(exe_dir, "weight", "best.pt")
             shutil.copy2(src_best, dst_best)
-            print(f"💾 已自動將最新 best.pt 權重複製至: {dst_best}")
+            print(f"💾 已自動將模型權重複製至: {dst_best}")
 
         print("\n" + "=" * 65)
         print("  🎉 打包完全成功！")
         print(f"  執行檔位置: {os.path.join(exe_dir, 'ClassifyTool.exe')}")
         print(f"  監控目錄  : {os.path.join(exe_dir, 'verify')}")
-        print(f"  權重目錄  : {os.path.join(exe_dir, 'weights')}")
+        print(f"  權重目錄  : {os.path.join(exe_dir, 'weight')}")
         print("=" * 65)
     else:
         print("\n❌ 打包失敗，請檢查上方編譯錯誤日誌。")
