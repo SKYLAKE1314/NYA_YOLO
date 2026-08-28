@@ -5,7 +5,8 @@ NYA AI Studio - 工業二分類即時監控與 HTTP 主站伺服器 (ClassifyToo
   1. 固定建立並即時監聽《verify》目錄 (及其所有子資料夾)。
   2. 發現新影像立即執行二分類推論 (OK / NG)。
   3. 檢測完成後立即刪除該圖片檔案。
-  4. 架設 HTTP 主站伺服器 (支援 192.168.1.4 / 0.0.0.0)，供客戶端查詢或主動推送結果。
+  4. 架設 HTTP 主站伺服器 (192.168.1.4 / 0.0.0.0)，供客戶端查詢或主動推送結果。
+  5. 支援獨立單一類運行與打包為獨立 .exe 執行檔。
 =============================================================================
 """
 
@@ -13,6 +14,7 @@ import os
 import sys
 import time
 import json
+import socket
 import threading
 import urllib.request
 import urllib.parse
@@ -22,25 +24,46 @@ import cv2
 import numpy as np
 from ultralytics import YOLO
 
-# ── 系統路徑設定 ──────────────────────────────────────────
-CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
-PROJECT_ROOT = os.path.abspath(os.path.join(CURRENT_DIR, ".."))
-if PROJECT_ROOT not in sys.path:
-    sys.path.insert(0, PROJECT_ROOT)
+# ── 判斷執行環境與基礎目錄 ──────────────────────────────
+if getattr(sys, 'frozen', False):
+    # 若被打包為 .exe，以 exe 所在的目錄作為基礎路徑
+    BASE_DIR = os.path.dirname(sys.executable)
+else:
+    # 源碼執行時，以專案根目錄為基礎路徑
+    CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
+    BASE_DIR = os.path.abspath(os.path.join(CURRENT_DIR, "..")) if "Detection" in CURRENT_DIR else CURRENT_DIR
+
+if BASE_DIR not in sys.path:
+    sys.path.insert(0, BASE_DIR)
 
 # ── 預設參數配置 ──────────────────────────────────────────
-# 監聽的目錄（固定為專案根目錄下的 verify）
-VERIFY_DIR = os.path.join(PROJECT_ROOT, "verify")
+# 監聽的目錄（固定為 base 目錄下的 verify）
+VERIFY_DIR = os.path.join(BASE_DIR, "verify")
 
 # HTTP 主站伺服器綁定 IP 與連接埠
-SERVER_HOST = "0.0.0.0"       # 綁定 0.0.0.0 可同時接受本機與 192.168.1.4 網路介面連線
+SERVER_HOST = "0.0.0.0"       # 綁定 0.0.0.0 同時接受本機、192.168.1.4 及所有區域網網路介面
 SERVER_PORT = 8080            # 主站 HTTP 端口
 
 # 若需要主動向 Client 推送結果，可在此設定 Client 端接收網址 (如 http://192.168.1.4:8000/api/result)
 CLIENT_PUSH_URL = "http://192.168.1.4:8000/result"
 
 # 預設二分類模型路徑
-DEFAULT_MODEL = os.path.join(PROJECT_ROOT, "runs", "classify", "train-5", "weights", "best.pt")
+DEFAULT_MODEL = os.path.join(BASE_DIR, "runs", "classify", "train-5", "weights", "best.pt")
+
+
+# ── 獲取本機所有網路 IP ──────────────────────────────────
+def get_local_ip_list():
+    ips = []
+    try:
+        hostname = socket.gethostname()
+        for ip in socket.gethostbyname_ex(hostname)[2]:
+            if not ip.startswith("127.") and ip not in ips:
+                ips.append(ip)
+    except Exception:
+        pass
+    if "192.168.1.4" not in ips:
+        ips.insert(0, "192.168.1.4")
+    return ips
 
 
 # ── 全域狀態管理 ──────────────────────────────────────────
@@ -86,7 +109,7 @@ class ServerState:
             yield_rate = (self.ok_count / self.total_count * 100.0) if self.total_count > 0 else 0.0
             return {
                 "status": "online",
-                "server_ip": "192.168.1.4",
+                "server_ips": get_local_ip_list(),
                 "port": SERVER_PORT,
                 "verify_dir": VERIFY_DIR,
                 "total_checked": self.total_count,
@@ -109,17 +132,23 @@ class BinaryClassifier:
         
         self.model_path = model_path
         self.device = device
-        print(f"📦 [AI Model] 載入二分類權重: {self.model_path}", flush=True)
+        print(f"📦 [AI Model] 載入二分類權重檔案: {self.model_path}", flush=True)
         self.model = YOLO(self.model_path)
 
     def _find_model_path(self):
+        # 1. 檢查預設路徑
         if os.path.exists(DEFAULT_MODEL):
             return DEFAULT_MODEL
-        weights_dir = os.path.join(PROJECT_ROOT, "weights")
+        # 2. 檢查 base_dir/weights/
+        weights_dir = os.path.join(BASE_DIR, "weights")
         if os.path.exists(weights_dir):
             for f in os.listdir(weights_dir):
-                if f.endswith(".pt") and ("cls" in f.lower() or "resnet" in f.lower()):
+                if f.endswith(".pt") and ("cls" in f.lower() or "resnet" in f.lower() or "best" in f.lower()):
                     return os.path.join(weights_dir, f)
+        # 3. 檢查當前目錄下 best.pt
+        local_best = os.path.join(BASE_DIR, "best.pt")
+        if os.path.exists(local_best):
+            return local_best
         return DEFAULT_MODEL
 
     def predict_image(self, img_input, imgsz=512):
@@ -172,7 +201,7 @@ class MasterHTTPRequestHandler(BaseHTTPRequestHandler):
         parsed = urllib.parse.urlparse(self.path)
         path = parsed.path.rstrip("/")
 
-        # 1. 取得主站完整狀態
+        # 1. 取得主站完整狀態與良率統計
         if path in ("", "/status", "/api/status"):
             self._send_json(GLOBAL_STATE.get_summary())
 
@@ -187,13 +216,21 @@ class MasterHTTPRequestHandler(BaseHTTPRequestHandler):
                 self._send_json({"history": GLOBAL_STATE.history})
 
         else:
-            self._send_json({"error": f"未知路徑: {self.path}", "help": ["/status", "/result", "/history", "/predict"]}, status_code=404)
+            self._send_json({
+                "error": f"未知路徑: {self.path}",
+                "help": [
+                    "/result  (獲取最新 OK/NG 判定)",
+                    "/status  (獲取良率與統計數據)",
+                    "/history (獲取歷史檢測列表)",
+                    "/predict (HTTP POST 圖片二進位檢測)"
+                ]
+            }, status_code=404)
 
     def do_POST(self):
         parsed = urllib.parse.urlparse(self.path)
         path = parsed.path.rstrip("/")
 
-        # 支援 Client 直接透過 HTTP POST 圖片二進位進行即時檢測
+        # 支援 Client 直接透過 HTTP POST 圖片進行即時檢測
         if path in ("/predict", "/api/predict"):
             try:
                 content_length = int(self.headers.get("Content-Length", 0))
@@ -233,9 +270,6 @@ class MasterHTTPRequestHandler(BaseHTTPRequestHandler):
 
 def create_http_server(host=SERVER_HOST, port=SERVER_PORT):
     server = ThreadedHTTPServer((host, port), MasterHTTPRequestHandler)
-    print(f"🚀 [HTTP Master Server] 主站伺服器已啟動: http://192.168.1.4:{port} (監聽 {host})", flush=True)
-    print(f"   └── API 查詢端點: http://192.168.1.4:{port}/result (取得最新 OK / NG)", flush=True)
-    print(f"   └── 狀態統計頁面: http://192.168.1.4:{port}/status (即時良率監控)", flush=True)
     return server
 
 
@@ -259,9 +293,6 @@ def push_result_to_client(result_data, client_url=CLIENT_PUSH_URL):
 # ── 《verify》目錄檔案即時監控與檢測流程 ──────────────────
 def watch_verify_directory(verify_dir=VERIFY_DIR):
     os.makedirs(verify_dir, exist_ok=True)
-    print(f"👀 [Directory Watcher] 開始即時監控目錄: {verify_dir}", flush=True)
-    print(f"   └── 只要將圖片放入 verify 目錄，系統將自動進行二分類並於檢測後自動刪除！\n", flush=True)
-
     img_exts = ('.jpg', '.jpeg', '.png', '.bmp', '.webp', '.tif', '.tiff')
 
     while True:
@@ -337,22 +368,42 @@ def watch_verify_directory(verify_dir=VERIFY_DIR):
 def main():
     global GLOBAL_CLASSIFIER
 
-    print("=" * 65, flush=True)
-    print("      NYA AI Studio - 工業二分類 (OK / NG) 主站服務系統", flush=True)
-    print("=" * 65, flush=True)
-
     # 1. 確保 《verify》 目錄存在
     os.makedirs(VERIFY_DIR, exist_ok=True)
 
-    # 2. 啟動 HTTP 主站伺服器 (即刻綁定連接埠)
+    # 2. 獲取本機 IP 清單
+    ip_list = get_local_ip_list()
+    primary_ip = ip_list[0] if ip_list else "192.168.1.4"
+
+    # 3. 印出完整資訊看板
+    print("=" * 70, flush=True)
+    print("      NYA AI Studio - 工業二分類 (OK / NG) 主站服務系統", flush=True)
+    print("=" * 70, flush=True)
+    print(f"📁 監控目錄路徑 (Verify Dir):", flush=True)
+    print(f"   └── {VERIFY_DIR}", flush=True)
+    print(f"🌐 HTTP 主站服務網址 (Server URLs):", flush=True)
+    for ip in ip_list:
+        print(f"   └── http://{ip}:{SERVER_PORT}", flush=True)
+    print(f"   └── http://localhost:{SERVER_PORT}", flush=True)
+    print(f"📡 API 呼叫端點 (API Endpoints):", flush=True)
+    print(f"   ├── 獲取最新結果 : GET  http://{primary_ip}:{SERVER_PORT}/result", flush=True)
+    print(f"   ├── 獲取良率統計 : GET  http://{primary_ip}:{SERVER_PORT}/status", flush=True)
+    print(f"   ├── 獲取歷史紀錄 : GET  http://{primary_ip}:{SERVER_PORT}/history", flush=True)
+    print(f"   └── 圖片直接推論 : POST http://{primary_ip}:{SERVER_PORT}/predict", flush=True)
+    print("=" * 70, flush=True)
+
+    # 4. 啟動 HTTP 主站伺服器 (即刻綁定連接埠)
     httpd = create_http_server(SERVER_HOST, SERVER_PORT)
     http_thread = threading.Thread(target=httpd.serve_forever, daemon=True)
     http_thread.start()
 
-    # 3. 初始化 AI 模型
+    # 5. 初始化 AI 模型
     GLOBAL_CLASSIFIER = BinaryClassifier()
 
-    # 4. 主線程執行 verify 目錄即時監控
+    print(f"👀 [Directory Watcher] 即時監聽已啟動！", flush=True)
+    print(f"   💡 將圖片放入 verify/ 目錄即可自動觸發檢測，檢測後自動刪除並更新 OK/NG 結果！\n", flush=True)
+
+    # 6. 主線程執行 verify 目錄即時監控
     watch_verify_directory(VERIFY_DIR)
 
 
