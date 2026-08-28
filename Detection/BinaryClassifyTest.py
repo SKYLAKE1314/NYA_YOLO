@@ -19,8 +19,8 @@ class BinaryClassifier:
 if __name__ == "__main__":
     classifier = BinaryClassifier(r"Z:\VisionTek\Ultralytics\Ultralytics_YOLO\runs\classify\train-5\weights\best.pt")
 
-    img_path = r"Z:\VisionTek\Ultralytics\Ultralytics_YOLO\NYA_Project\dataset\val\OK\工位1_工位1_26-07-20-153712-176_0045_二分类检测_16.jpg"
+    img_path = r"Z:\VisionTek\X6AA\ScreenShot_2026-08-28_144810_088.png"
     label, conf, res = classifier.predict(img_path)
 
-    print(f"分類判定: [{label}] (信心度: {conf * 100:.2f}%)")
+    print(f"result: [{label}] (準度: {conf * 100:.2f}%)")
     res.show()

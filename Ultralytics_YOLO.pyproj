@@ -27,6 +27,7 @@
     <Compile Include="ConfigCreator.py" />
     <Compile Include="Datasets\Split.py" />
     <Compile Include="Detection\BinaryClassifyTest.py" />
+    <Compile Include="Detection\ClassifyTest.py" />
     <Compile Include="Detection\DetectionTest.py" />
     <Compile Include="Detection\RandomTest.py" />
     <Compile Include="Detection\textdetection.py" />
