@@ -4,7 +4,7 @@
     <SchemaVersion>2.0</SchemaVersion>
     <ProjectGuid>fac4769b-8baf-4cab-b4ad-e2ddd710db63</ProjectGuid>
     <ProjectHome>.</ProjectHome>
-    <StartupFile>UI\NyaYOLOStudio.py</StartupFile>
+    <StartupFile>Detection\BinaryClassifyTest.py</StartupFile>
     <SearchPath>
     </SearchPath>
     <WorkingDirectory>.</WorkingDirectory>
@@ -26,6 +26,7 @@
     <Compile Include="build_nuitka.py" />
     <Compile Include="ConfigCreator.py" />
     <Compile Include="Datasets\Split.py" />
+    <Compile Include="Detection\BinaryClassifyTest.py" />
     <Compile Include="Detection\DetectionTest.py" />
     <Compile Include="Detection\RandomTest.py" />
     <Compile Include="Detection\textdetection.py" />

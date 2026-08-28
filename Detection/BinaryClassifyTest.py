@@ -1,3 +1,4 @@
+import cv2
 from ultralytics import YOLO
 
 class BinaryClassifier:
@@ -15,6 +16,11 @@ class BinaryClassifier:
         conf = float(probs.top1conf)
         return label, conf, results[0]
 
+    def show(self, result, window_name="Binary Classification"):
+        cv2.imshow(window_name, result.plot())
+        cv2.waitKey(0)
+        cv2.destroyAllWindows()
+
 
 if __name__ == "__main__":
     # 載入二分類模型
@@ -26,5 +32,5 @@ if __name__ == "__main__":
 
     print(f"分類判定: [{label}] (信心度: {conf * 100:.2f}%)")
 
-    # 顯示結果圖
-    res.show()
+    # 彈窗顯示結果圖像 (按任意鍵關閉)
+    classifier.show(res)
