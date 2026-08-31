@@ -23,12 +23,10 @@
     <EnableUnmanagedDebugging>false</EnableUnmanagedDebugging>
   </PropertyGroup>
   <ItemGroup>
-    <Compile Include="build_classify_exe.py" />
     <Compile Include="build_nuitka.py" />
     <Compile Include="ConfigCreator.py" />
     <Compile Include="Datasets\Split.py" />
     <Compile Include="Detection\ClassifyTool.py" />
-    <Compile Include="Detection\BinaryClassifyTest.py" />
     <Compile Include="Detection\ClassifyTest.py" />
     <Compile Include="Detection\DetectionTest.py" />
     <Compile Include="Detection\RandomTest.py" />

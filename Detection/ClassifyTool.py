@@ -206,9 +206,9 @@ class ClassifyTool:
         print("=" * 60, flush=True)
         print("      NYA AI Studio - 二分類主站", flush=True)
         print("=" * 60, flush=True)
-        print(f"監控目錄: {self.verify_dir}", flush=True)
-        print(f"權重檔案: {self.model_path}", flush=True)
-        print(f"服務網址: http://{primary_ip}:{self.port}/result", flush=True)
+        print(f"images: {self.verify_dir}", flush=True)
+        print(f"weight: {self.model_path}", flush=True)
+        print(f"server: http://{primary_ip}:{self.port}/result", flush=True)
         print("=" * 60, flush=True)
 
         while True:
@@ -216,7 +216,7 @@ class ClassifyTool:
                 self.process_images()
                 time.sleep(0.02)
             except Exception as ex:
-                print(f"異常: {ex}", flush=True)
+                print(f"出錯: {ex}", flush=True)
                 time.sleep(0.2)
 
 
