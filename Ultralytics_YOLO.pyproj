@@ -4,7 +4,7 @@
     <SchemaVersion>2.0</SchemaVersion>
     <ProjectGuid>fac4769b-8baf-4cab-b4ad-e2ddd710db63</ProjectGuid>
     <ProjectHome>.</ProjectHome>
-    <StartupFile>Detection\BinaryClassifyTest.py</StartupFile>
+    <StartupFile>Detection\ClassifyTool.py</StartupFile>
     <SearchPath>
     </SearchPath>
     <WorkingDirectory>.</WorkingDirectory>
@@ -23,9 +23,11 @@
     <EnableUnmanagedDebugging>false</EnableUnmanagedDebugging>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Include="build_classify_exe.py" />
     <Compile Include="build_nuitka.py" />
     <Compile Include="ConfigCreator.py" />
     <Compile Include="Datasets\Split.py" />
+    <Compile Include="Detection\ClassifyTool.py" />
     <Compile Include="Detection\BinaryClassifyTest.py" />
     <Compile Include="Detection\ClassifyTest.py" />
     <Compile Include="Detection\DetectionTest.py" />

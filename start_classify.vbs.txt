@@ -1,0 +1,20 @@
+' =========================================================
+' NYA AI Studio - ClassifyTool 二分類主站啟動腳本
+' 使用方式: 將此檔案後綴 .txt 刪除，改為 start_classify.vbs 即可雙擊直接運行
+' =========================================================
+
+Set ws = CreateObject("WScript.Shell")
+Set fso = CreateObject("Scripting.FileSystemObject")
+currentDir = fso.GetParentFolderName(WScript.ScriptFullName)
+ws.CurrentDirectory = currentDir
+
+' 判斷啟動目標 (優先啟動 exe，若無則調用 python 腳本)
+If fso.FileExists(currentDir & "\ClassifyTool.exe") Then
+    ws.Run """" & currentDir & "\ClassifyTool.exe""", 1, False
+ElseIf fso.FileExists(currentDir & "\dist_classify\ClassifyTool\ClassifyTool.exe") Then
+    ws.Run """" & currentDir & "\dist_classify\ClassifyTool\ClassifyTool.exe""", 1, False
+ElseIf fso.FileExists(currentDir & "\Detection\ClassifyTool.py") Then
+    ws.Run "python """ & currentDir & "\Detection\ClassifyTool.py""", 1, False
+Else
+    ws.Run "python """ & currentDir & "\ClassifyTool.py""", 1, False
+End If
