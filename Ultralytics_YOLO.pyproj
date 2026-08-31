@@ -4,7 +4,7 @@
     <SchemaVersion>2.0</SchemaVersion>
     <ProjectGuid>fac4769b-8baf-4cab-b4ad-e2ddd710db63</ProjectGuid>
     <ProjectHome>.</ProjectHome>
-    <StartupFile>Detection\ClassifyTool.py</StartupFile>
+    <StartupFile>tools\HttpReceiver.py</StartupFile>
     <SearchPath>
     </SearchPath>
     <WorkingDirectory>.</WorkingDirectory>
@@ -37,6 +37,7 @@
     <Compile Include="tools\cudatorch.py" />
     <Compile Include="tools\ConvertToLables.py" />
     <Compile Include="tools\DataCheck.py" />
+    <Compile Include="tools\HttpReceiver.py" />
     <Compile Include="tools\seg\ConfigCreator.py" />
     <Compile Include="tools\seg\JSON2YOLOSeg.py" />
     <Compile Include="UI\components\annotation_canvas.py" />

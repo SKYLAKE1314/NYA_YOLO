@@ -67,15 +67,21 @@ class ClassifyTool:
         return label, conf
 
     def push_to_client(self, payload):
-        if not self.client_url:
-            return
-        try:
-            req_data = json.dumps(payload).encode("utf-8")
-            req = urllib.request.Request(self.client_url, data=req_data, headers={"Content-Type": "application/json"})
-            with urllib.request.urlopen(req, timeout=0.5) as resp:
+        targets = []
+        if self.client_url:
+            targets.append(self.client_url)
+        # 本機接收端 fallback
+        if "127.0.0.1" not in str(self.client_url) and "localhost" not in str(self.client_url):
+            targets.append("http://127.0.0.1:8000/result")
+
+        req_data = json.dumps(payload).encode("utf-8")
+        for url in targets:
+            try:
+                req = urllib.request.Request(url, data=req_data, headers={"Content-Type": "application/json"})
+                with urllib.request.urlopen(req, timeout=0.5) as resp:
+                    pass
+            except Exception:
                 pass
-        except Exception:
-            pass
 
     def process_images(self):
         img_exts = ('.jpg', '.jpeg', '.png', '.bmp', '.webp', '.tif', '.tiff')
@@ -206,9 +212,9 @@ class ClassifyTool:
         print("=" * 60, flush=True)
         print("      NYA AI Studio - 二分類主站", flush=True)
         print("=" * 60, flush=True)
-        print(f"images: {self.verify_dir}", flush=True)
-        print(f"weight: {self.model_path}", flush=True)
-        print(f"server: http://{primary_ip}:{self.port}/result", flush=True)
+        print(f"監控目錄: {self.verify_dir}", flush=True)
+        print(f"權重檔案: {self.model_path}", flush=True)
+        print(f"服務網址: http://{primary_ip}:{self.port}/result", flush=True)
         print("=" * 60, flush=True)
 
         while True:
@@ -216,7 +222,7 @@ class ClassifyTool:
                 self.process_images()
                 time.sleep(0.02)
             except Exception as ex:
-                print(f"出錯: {ex}", flush=True)
+                print(f"異常: {ex}", flush=True)
                 time.sleep(0.2)
 
 

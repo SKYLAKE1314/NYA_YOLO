@@ -27,10 +27,10 @@ class ReceiverHandler(BaseHTTPRequestHandler):
             data = json.loads(raw_data) if raw_data else {}
 
             now_t = time.strftime("%H:%M:%S")
-            print(f"[{now_t}] 收到主站推播數據:", flush=True)
+            print(f"[{now_t}] 主站推送數據:", flush=True)
             if "results" in data and isinstance(data["results"], list):
                 for item in data["results"]:
-                    tag = "🟢 [OK]" if "-OK" in item else "🔴 [NG]"
+                    tag = "[OK]" if "-OK" in item else "[NG]"
                     print(f"   {tag} {item}", flush=True)
             elif "result" in data:
                 print(f"   {data['result']}", flush=True)
@@ -65,7 +65,7 @@ def start_listener(port=PORT):
 
 def start_polling(master_url=MASTER_URL, interval=0.5):
     print("=" * 55, flush=True)
-    print("      NYA HTTP 輪詢客戶端 (Polling Client)", flush=True)
+    print("      HTTP 輪詢", flush=True)
     print("=" * 55, flush=True)
     print(f"目標主站: {master_url}", flush=True)
     print(f"輪詢間隔: {interval}s\n", flush=True)
