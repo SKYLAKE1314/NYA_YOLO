@@ -2,7 +2,6 @@ import os
 import sys
 import time
 import json
-import socket
 import threading
 import urllib.request
 import urllib.parse
@@ -14,7 +13,7 @@ from ultralytics import YOLO
 
 
 class ClassifyTool:
-    def __init__(self, host="0.0.0.0", port=8080, client_url="http://192.168.1.4:8000/result", verify_dir=None, weight_dir=None):
+    def __init__(self, host="0.0.0.0", port=8080, client_url=None, verify_dir=None, weight_dir=None):
         if getattr(sys, 'frozen', False):
             self.base_dir = os.path.dirname(sys.executable)
         else:
@@ -31,7 +30,7 @@ class ClassifyTool:
         self.client_url = client_url
 
         self.lock = threading.Lock()
-        self.latest_result = {"results": [], "data": {}, "latest": "NONE"}
+        self.latest_result = {"results": [], "data": {}, "latest": "NONE", "id": 0}
 
         os.makedirs(self.verify_dir, exist_ok=True)
         os.makedirs(self.weight_dir, exist_ok=True)
@@ -67,21 +66,15 @@ class ClassifyTool:
         return label, conf
 
     def push_to_client(self, payload):
-        targets = []
-        if self.client_url:
-            targets.append(self.client_url)
-        # 本機接收端 fallback
-        if "127.0.0.1" not in str(self.client_url) and "localhost" not in str(self.client_url):
-            targets.append("http://127.0.0.1:8000/result")
-
-        req_data = json.dumps(payload).encode("utf-8")
-        for url in targets:
-            try:
-                req = urllib.request.Request(url, data=req_data, headers={"Content-Type": "application/json"})
-                with urllib.request.urlopen(req, timeout=0.5) as resp:
-                    pass
-            except Exception:
+        if not self.client_url:
+            return
+        try:
+            req_data = json.dumps(payload).encode("utf-8")
+            req = urllib.request.Request(self.client_url, data=req_data, headers={"Content-Type": "application/json"})
+            with urllib.request.urlopen(req, timeout=0.5) as resp:
                 pass
+        except Exception:
+            pass
 
     def process_images(self):
         img_exts = ('.jpg', '.jpeg', '.png', '.bmp', '.webp', '.tif', '.tiff')
@@ -146,12 +139,14 @@ class ClassifyTool:
             payload = {
                 "results": batch_results,
                 "data": batch_dict,
-                "latest": batch_results[-1]
+                "latest": batch_results[-1],
+                "id": int(time.time() * 1000)
             }
             with self.lock:
                 self.latest_result = payload
 
-            threading.Thread(target=self.push_to_client, args=(payload,), daemon=True).start()
+            if self.client_url:
+                threading.Thread(target=self.push_to_client, args=(payload,), daemon=True).start()
 
     def _create_http_server(self):
         tool_self = self
