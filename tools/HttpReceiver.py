@@ -8,10 +8,10 @@ DEFAULT_URL = "http://127.0.0.1:8080/result"
 
 def receive_results(url=DEFAULT_URL, interval=0.05):
     print("=" * 60, flush=True)
-    print("      NYA AI Studio - HTTP 接收工具 (Client)", flush=True)
+    print("HTTP 接收 (Client)", flush=True)
     print("=" * 60, flush=True)
     print(f"連線主站: {url}", flush=True)
-    print(f"正在即時接收檢測結果...\n", flush=True)
+    print(f"即時接收檢測結果...\n", flush=True)
 
     last_id = None
     last_latest = None
@@ -38,7 +38,7 @@ def receive_results(url=DEFAULT_URL, interval=0.05):
                     now_t = time.strftime("%H:%M:%S")
                     results = data.get("results", [latest])
                     for res in results:
-                        tag = "🟢 [OK]" if "-OK" in res else "🔴 [NG]"
+                        tag = "[OK]" if "-OK" in res else "[NG]"
                         print(f"[{now_t}] 接收結果: {tag} {res}", flush=True)
 
         except Exception:

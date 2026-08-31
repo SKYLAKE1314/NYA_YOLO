@@ -2,6 +2,7 @@ import os
 import sys
 import time
 import json
+import base64
 import threading
 import urllib.request
 import urllib.parse
@@ -181,13 +182,42 @@ class ClassifyTool:
                             self._send_json({"error": "empty body"}, status_code=400)
                             return
                         post_data = self.rfile.read(content_length)
-                        nparr = np.frombuffer(post_data, np.uint8)
-                        img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+
+                        img = None
+                        img_name = "image"
+
+                        # 支援 JSON 格式傳入
+                        try:
+                            req_json = json.loads(post_data.decode("utf-8"))
+                            if "image_path" in req_json or "path" in req_json:
+                                p = req_json.get("image_path") or req_json.get("path")
+                                img_name = os.path.splitext(os.path.basename(p))[0]
+                                data = np.fromfile(p, dtype=np.uint8)
+                                img = cv2.imdecode(data, cv2.IMREAD_COLOR)
+                            elif "image_base64" in req_json or "base64" in req_json:
+                                b64 = req_json.get("image_base64") or req_json.get("base64")
+                                if "," in b64:
+                                    b64 = b64.split(",", 1)[1]
+                                img_bytes = base64.b64decode(b64)
+                                nparr = np.frombuffer(img_bytes, np.uint8)
+                                img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+                                img_name = req_json.get("name", "image")
+                        except Exception:
+                            # 支援圖片二進位原始數據
+                            nparr = np.frombuffer(post_data, np.uint8)
+                            img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+
                         if img is None:
                             self._send_json({"error": "decode failed"}, status_code=400)
                             return
+
                         label, conf = tool_self.predict_image(img)
-                        res = {"result": f"image-{label}", "label": label, "confidence": conf}
+                        res = {
+                            "result": f"{img_name}-{label}",
+                            "name": img_name,
+                            "label": label,
+                            "confidence": round(float(conf), 4)
+                        }
                         self._send_json(res)
                     except Exception as e:
                         self._send_json({"error": str(e)}, status_code=500)
