@@ -405,4 +405,5 @@ NYA_Project/
 .nya_cache.json
 *.log
 Weight/
+dist_msix/
 
