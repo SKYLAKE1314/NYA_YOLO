@@ -1,7 +1,6 @@
 import os
 import sys
 import time
-import datetime
 import json
 import threading
 import urllib.request
@@ -36,6 +35,7 @@ class ClassifyTool:
 
         self.state_lock = threading.Lock()
         self.latest_result = {"results": [], "data": {}, "latest": "NONE", "id": 0}
+        self._last_logged_get_id = 0
 
         self.executor = ThreadPoolExecutor(max_workers=self.max_workers)
 
@@ -200,18 +200,18 @@ class ClassifyTool:
 
         # 4. 更新狀態與推播
         now_ts = time.time()
-        now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
+        time_str = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(now_ts)) + f".{int(now_ts * 1000) % 1000:03d}"
         payload = {
             "results": batch_results,
             "data": batch_dict,
             "latest": batch_results[-1],
             "id": int(now_ts * 1000),
-            "timestamp": now_str
+            "timestamp": time_str
         }
         with self.state_lock:
             self.latest_result = payload
 
-        print(f"[{now_str}] [HTTP結果推播] 最新: {payload['latest']} (批次數量: {len(batch_results)}, id: {payload['id']})", flush=True)
+        print(f"[{time_str}] [HTTP] 結果推送到HTTP: {payload['latest']} (ID: {payload['id']}, 共 {len(batch_results)} 張)", flush=True)
 
         if self.client_url:
             self.executor.submit(self.push_to_client, payload)
@@ -223,16 +223,17 @@ class ClassifyTool:
     def push_to_client(self, payload):
         if not self.client_url:
             return
+        t_start = time.time()
+        now_str = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(t_start)) + f".{int(t_start * 1000) % 1000:03d}"
         try:
             req_data = json.dumps(payload).encode("utf-8")
             req = urllib.request.Request(self.client_url, data=req_data, headers={"Content-Type": "application/json"})
-            with urllib.request.urlopen(req, timeout=0.5):
+            with urllib.request.urlopen(req, timeout=1.0):
                 pass
-            ts = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
-            print(f"[{ts}] [HTTP推送成功] -> {self.client_url}", flush=True)
+            cost_ms = (time.time() - t_start) * 1000
+            print(f"[{now_str}] [HTTP] 推送至客戶端成功: {self.client_url} (耗時: {cost_ms:.1f}ms)", flush=True)
         except Exception as e:
-            ts = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
-            print(f"[{ts}] [HTTP推送失敗] -> {self.client_url}: {e}", flush=True)
+            print(f"[{now_str}] [HTTP] 推送至客戶端失敗: {self.client_url} ({e})", flush=True)
 
     def _create_http_server(self):
         tool_self = self
@@ -253,6 +254,13 @@ class ClassifyTool:
                     with tool_self.state_lock:
                         res = tool_self.latest_result
                     self._send_json(res)
+
+                    res_id = res.get("id", 0)
+                    if res_id != 0 and res_id != getattr(tool_self, "_last_logged_get_id", 0) and res.get("latest") != "NONE":
+                        tool_self._last_logged_get_id = res_id
+                        get_t = time.strftime('%Y-%m-%d %H:%M:%S') + f".{int(time.time() * 1000) % 1000:03d}"
+                        push_t = res.get("timestamp", "")
+                        print(f"[{get_t}] [HTTP GET] 客戶端 ({self.client_address[0]}) 已取走結果: {res['latest']} (主站發布時間: {push_t})", flush=True)
                 else:
                     self._send_json({"error": "404 Not Found"}, status_code=404)
 
@@ -284,9 +292,20 @@ class ClassifyTool:
 
         class ThreadedServer(ThreadingMixIn, HTTPServer):
             daemon_threads = True
-            allow_reuse_address = True
 
-        return ThreadedServer((self.host, self.port), RequestHandler)
+        try:
+            return ThreadedServer((self.host, self.port), RequestHandler)
+        except OSError as e:
+            if getattr(e, 'winerror', None) == 10013 or getattr(e, 'errno', None) == 10013:
+                for alt_p in [8888, 8200, 5000]:
+                    try:
+                        srv = ThreadedServer((self.host, alt_p), RequestHandler)
+                        print(f"端口 {self.port} 被系統佔用或保留，改用端口: {alt_p}", flush=True)
+                        self.port = alt_p
+                        return srv
+                    except Exception:
+                        pass
+            raise
 
     def run(self):
         print("=" * 60, flush=True)
