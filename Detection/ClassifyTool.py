@@ -1,6 +1,7 @@
 import os
 import sys
 import time
+import datetime
 import json
 import threading
 import urllib.request
@@ -198,14 +199,19 @@ class ClassifyTool:
         )
 
         # 4. 更新狀態與推播
+        now_ts = time.time()
+        now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
         payload = {
             "results": batch_results,
             "data": batch_dict,
             "latest": batch_results[-1],
-            "id": int(time.time() * 1000)
+            "id": int(now_ts * 1000),
+            "timestamp": now_str
         }
         with self.state_lock:
             self.latest_result = payload
+
+        print(f"[{now_str}] [HTTP結果推播] 最新: {payload['latest']} (批次數量: {len(batch_results)}, id: {payload['id']})", flush=True)
 
         if self.client_url:
             self.executor.submit(self.push_to_client, payload)
@@ -222,8 +228,11 @@ class ClassifyTool:
             req = urllib.request.Request(self.client_url, data=req_data, headers={"Content-Type": "application/json"})
             with urllib.request.urlopen(req, timeout=0.5):
                 pass
-        except Exception:
-            pass
+            ts = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
+            print(f"[{ts}] [HTTP主動推送成功] -> {self.client_url}", flush=True)
+        except Exception as e:
+            ts = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
+            print(f"[{ts}] [HTTP主動推送失敗] -> {self.client_url}: {e}", flush=True)
 
     def _create_http_server(self):
         tool_self = self
