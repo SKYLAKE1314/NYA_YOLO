@@ -205,8 +205,7 @@ class ClassifyTool:
             "results": batch_results,
             "data": batch_dict,
             "latest": batch_results[-1],
-            "id": int(now_ts * 1000),
-            "timestamp": time_str
+            "id": int(now_ts * 1000)
         }
         with self.state_lock:
             self.latest_result = payload
@@ -259,7 +258,7 @@ class ClassifyTool:
                     if res_id != 0 and res_id != getattr(tool_self, "_last_logged_get_id", 0) and res.get("latest") != "NONE":
                         tool_self._last_logged_get_id = res_id
                         get_t = time.strftime('%Y-%m-%d %H:%M:%S') + f".{int(time.time() * 1000) % 1000:03d}"
-                        push_t = res.get("timestamp", "")
+                        push_t = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(res_id / 1000.0)) + f".{res_id % 1000:03d}"
                         print(f"[{get_t}] [HTTP GET] 客戶端 ({self.client_address[0]}) 已取走結果: {res['latest']} (主站發布時間: {push_t})", flush=True)
                 else:
                     self._send_json({"error": "404 Not Found"}, status_code=404)
