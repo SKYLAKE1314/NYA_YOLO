@@ -229,10 +229,10 @@ class ClassifyTool:
             with urllib.request.urlopen(req, timeout=0.5):
                 pass
             ts = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
-            print(f"[{ts}] [HTTP主動推送成功] -> {self.client_url}", flush=True)
+            print(f"[{ts}] [HTTP推送成功] -> {self.client_url}", flush=True)
         except Exception as e:
             ts = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
-            print(f"[{ts}] [HTTP主動推送失敗] -> {self.client_url}: {e}", flush=True)
+            print(f"[{ts}] [HTTP推送失敗] -> {self.client_url}: {e}", flush=True)
 
     def _create_http_server(self):
         tool_self = self
@@ -284,20 +284,9 @@ class ClassifyTool:
 
         class ThreadedServer(ThreadingMixIn, HTTPServer):
             daemon_threads = True
+            allow_reuse_address = True
 
-        try:
-            return ThreadedServer((self.host, self.port), RequestHandler)
-        except OSError as e:
-            if getattr(e, 'winerror', None) == 10013 or getattr(e, 'errno', None) == 10013:
-                for alt_p in [8088, 8000]:
-                    try:
-                        srv = ThreadedServer((self.host, alt_p), RequestHandler)
-                        print(f"端口 {self.port} 被系統佔用或保留，改用端口: {alt_p}", flush=True)
-                        self.port = alt_p
-                        return srv
-                    except Exception:
-                        pass
-            raise
+        return ThreadedServer((self.host, self.port), RequestHandler)
 
     def run(self):
         print("=" * 60, flush=True)
